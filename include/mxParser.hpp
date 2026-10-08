@@ -203,6 +203,13 @@ namespace mxParser {
         if (dDetector < 0.0)
                 mexErrMsgIdAndTxt("mxParser:ValueError", "dDetector has to be positive");
     }
+
+    inline void parse_angles(std::vector<double>& angles, const mxArray* config) {
+        const int nAngles = parse_array_size(config, "angles");
+        angles.resize(nAngles);
+        double* angles_arr = parse_array_ptr<double>(config, "angles");
+        std::copy(angles_arr, angles_arr + nAngles, angles.begin());
+    }
 }
 
 #endif

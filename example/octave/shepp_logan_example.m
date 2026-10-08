@@ -22,8 +22,10 @@ config.nDetector = int32(512);
 config.dDetector = 0.8;
 config.sDetector = 409.6;
 
+config.angles = 0:10:100;
+
 % Load mex-function
-Ax_mex(img, config);
+proj = Ax_mex(img, config);
 
 
-
+clear functions;

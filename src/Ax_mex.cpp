@@ -12,7 +12,7 @@
 
 
 void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
-    if ((nlhs != 0) || (nrhs != 2))
+    if ((nlhs != 1) || (nrhs != 2))
         mexErrMsgTxt("Error: invalid number of input and output variables gives.\n");
 
     // Read geometry
@@ -27,9 +27,27 @@ void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     double dDetector; mxParser::parse_dDetector(dDetector, prhs[1]);
     double sDetector; mxParser::parse_sDetector(sDetector, prhs[1]);
 
+    std::vector<double> angles;
+    mxParser::parse_angles(angles, prhs[1]);
+
+    int nAngles = angles.size();
+
     // Load image
     opticalflow::Image image(nVoxel);
     double* tmp = (double*) mxGetPr(prhs[0]);
     opticalflow::image::load_image(tmp, image);
+
+    // Allocate memory for projection data
+    opticalflow::Image projections(dim(nDetector, nAngles));
+    projections.fill(0.0);
+
+    // Calculate projections
+    // ...
+
+    // Return projection data to matlab workspace
+    mwSize dim_projections[2] = {nDetector, nAngles};
+    plhs[0] = mxCreateNumericArray(2, dim_projections, mxDOUBLE_CLASS, mxREAL);
+    tmp = (double*) mxGetPr(plhs[0]);
+    opticalflow::image::save_image(tmp, projections);
 
 }
