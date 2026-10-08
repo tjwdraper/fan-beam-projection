@@ -1,2 +1,4 @@
+.vscode
 build
 include/json.hpp
+mex/*.mex
