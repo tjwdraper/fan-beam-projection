@@ -209,6 +209,10 @@ namespace mxParser {
         angles.resize(nAngles);
         double* angles_arr = parse_array_ptr<double>(config, "angles");
         std::copy(angles_arr, angles_arr + nAngles, angles.begin());
+
+        // From degrees to radians
+        for (auto& angle : angles)
+            angle *= M_PI / 180;
     }
 }
 

@@ -42,7 +42,14 @@ void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     projections.fill(0.0);
 
     // Calculate projections
-    // ...
+    fan_beam::Ax(
+        projections,
+        image,
+        DSO, DSD,
+        nVoxel, sVoxel, dVoxel,
+        nDetector, sDetector, dDetector,
+        angles
+    );
 
     // Return projection data to matlab workspace
     mwSize dim_projections[2] = {nDetector, nAngles};
