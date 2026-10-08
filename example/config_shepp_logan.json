@@ -1,0 +1,15 @@
+{
+    "path_image": "img/shepp_logan.bin",
+    "path_projections": "img/shepp_logan_projections.bin",
+
+    "geometry": {
+        "DSO": 1000,
+        "DSD": 1536,
+        "nVoxel": [256, 256],
+        "sVoxel": [256, 256],
+        "dVoxel": [1, 1],
+        "nDetector": 512,
+        "dDetector": 0.8,
+        "sDetector": 409.6
+    }
+}
