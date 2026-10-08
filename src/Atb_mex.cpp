@@ -55,6 +55,6 @@ void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     mwSize dim_image[2] = {nVoxel.x, nVoxel.y};
     plhs[0] = mxCreateNumericArray(2, dim_image, mxDOUBLE_CLASS, mxREAL);
     tmp = (double*) mxGetPr(plhs[0]);
-    opticalflow::image::save_image(tmp, projections);
+    opticalflow::image::save_image(tmp, backproj);
 
 }
