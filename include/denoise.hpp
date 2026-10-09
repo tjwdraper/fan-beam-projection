@@ -6,7 +6,7 @@
 
 
 // Model options
-enum class VerboseOption {SILENT, DISABLE_WARNING, VERBOSE};
+enum class VerboseOption {SILENT, VERBOSE};
 enum class ModelOption {TV, TGV};
 
 namespace denoise {
@@ -109,6 +109,10 @@ namespace denoise {
         }
     }
 
+    void update_r(opticalflow::Image& r, const opticalflow::Image& ubar, const opticalflow::Image& p, double sigma) {
+        
+    }
+
     void update_u(opticalflow::Image& u,
                   const opticalflow::Image& px, const opticalflow::Image& py,
                   double tau) {
@@ -193,6 +197,87 @@ namespace denoise {
     }
 
     // The primal-dual TGV-denoising algorithm
+    opticalflow::Image tgv_reconstruct(const opticalflow::Image& p, 
+        double tau, double sigma, double lambda, double alpha0, double alpha1, int niter, double convergence, 
+        double DSO, double DSD, dim nVoxel, vector2d sVoxel, vector2d dVoxel, int nDetector, double sDetector, double dDetector, const std::vector<double>& angles) {
+        
+        const int nAngles = angles.size();
+
+        // Initialize Primal-Dual variables
+        opticalflow::Image u(nVoxel); u.fill(0.0);
+        opticalflow::Image ubar(nVoxel); ubar.fill(0.0);
+
+        opticalflow::Image vx(nVoxel); vx.fill(0.0);
+        opticalflow::Image vy(nVoxel); vy.fill(0.0);
+
+        opticalflow::Image vbarx(nVoxel); vbarx.fill(0.0);
+        opticalflow::Image vbary(nVoxel); vbary.fill(0.0);
+
+        opticalflow::Image px(nVoxel); px.fill(0.0);
+        opticalflow::Image py(nVoxel); py.fill(0.0);
+
+        opticalflow::Image qxx(nVoxel); qxx.fill(0.0);
+        opticalflow::Image qyy(nVoxel); qyy.fill(0.0);
+        opticalflow::Image qxy(nVoxel); qxy.fill(0.0);
+
+        opticalflow::Image r(dim(nDetector, nAngles)); r.fill(0.0);
+
+        // Tracking variables
+        opticalflow::Image uold(nVoxel); uold.fill(0.0);
+        opticalflow::Image vxold(nVoxel); vxold.fill(0.0);
+        opticalflow::Image vyold(nVoxel); vyold.fill(0.0);    
+
+        // Primal-dual iterations
+        for (int iter = 0; iter < niter; ++iter) {
+            // Update dual variables
+            denoise::update_p(px,py,ubar,vbarx,vbary,sigma);
+            denoise::update_q(qxx, qyy, qxy, vbarx, vbary, sigma);
+            denoise::update_r(r, ubar, p, sigma);
+
+            denoise::proj_p(px,py,alpha1);
+            denoise::proj_q(qxx,qyy,qxy,alpha0);
+            denoise::prox_r(r, sigma, lambda);
+
+            // Track u
+            uold = u;
+
+            // Proximal operator
+            denoise::update_u(u, px, py, r, tau);
+
+            // Update ubar
+            ubar = 2*u - uold;
+
+            // Track v
+            vxold = vx;
+            vyold = vy;
+
+            // Update v
+            denoise::update_v(vx, vy, px, py, qxx, qyy, qxy, tau);
+
+            // Update vbar
+            vbarx = 2*vx - vxold;
+            vbary = 2*vy - vyold;
+
+            // Check for convergence
+            double relchange = opticalflow::image::norm(u-uold)/opticalflow::image::norm(u);
+            if (relchange < convergence)
+                break;
+
+            // Update some norms:
+            // if (iter % 50 == 0) {
+            //     std::cout << "iter " << iter 
+            //         << "\t|u_new-u|/|u_new| = " << relchange 
+            //         << "\t1/(2*lambda)*|u-f|^2 = " << opticalflow::image::normsq(u-f) / (2*lambda)
+            //         << "\talpha_1 * |Du - v|_1 = " << denoise::tv_residual_norm(u,vx,vy) * alpha1
+            //         << "\talpha_0 * |Ev|_1 = " << denoise::l1_E_norm(vx,vy) * alpha0
+            //         << std::endl;
+            // }
+        }
+
+        return u;
+    }
+
+
     opticalflow::Image tgv_denoise(const opticalflow::Image& f, double tau, double sigma, double lambda, double alpha0, double alpha1, int niter, double convergence, VerboseOption verbose) {
         if (tau <= 0.0)
             throw std::runtime_error("Tau has to be a positive scalar.");
@@ -274,50 +359,7 @@ namespace denoise {
         return u;
     }
 
-    // The primal-dual TV-denoising algorithm
-    opticalflow::Image tv_denoise(const opticalflow::Image& f, double tau, double sigma, double lambda, double alpha0, int niter, double convergence, VerboseOption verbose) {
-        // Get the image dimensions
-        const dim dimin = f.get_dimensions();
-
-        // Initialize primal-dual variables
-        opticalflow::Image u(f);
-        opticalflow::Image ubar(f);
-
-        opticalflow::Image px(dimin); px.fill(0.0);
-        opticalflow::Image py(dimin); py.fill(0.0);
-
-        // Tracking variable
-        opticalflow::Image uold(dimin); uold.fill(0.0);
-
-        // Primal-dual iterations
-        for (int iter = 0; iter < niter; ++iter) {
-
-            denoise::update_p(px,py,ubar,sigma);
-            denoise::proj_p(px,py,alpha0);
-
-            uold = u;
-
-            denoise::update_u(u,px,py,tau);
-            denoise::prox(u,f,tau,lambda);
-
-            // Update ubar
-            ubar = 2*u - uold;
-
-            double relchange = opticalflow::image::norm(u-uold)/opticalflow::image::norm(u);
-            if (relchange < convergence)
-                break;
-
-            // Update some norms:
-            if (iter % 50 == 0 && verbose == VerboseOption::VERBOSE)
-                std::cout << "iter " << iter 
-                    << "\t|u_new-u|/|u_new| = " << relchange 
-                    << "\t1/(2*lambda)*|u-f|^2 = " << opticalflow::image::normsq(u-f) / (2*lambda)
-                    << "\talpha_0 * |Du|_1 = " << denoise::tv_norm(u)
-                    << std::endl;
-        }
-
-        return u;
-    }
+    
 }
 
 #endif

@@ -10,6 +10,12 @@
 #include <map>
 
 #include "coord2d.hpp"
+
+inline const std::map<std::string, VerboseOption> mapper_verbose_option {
+    {"silent", VerboseOption::SILENT},
+    {"verbose", VerboseOption::VERBOSE}
+};
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Helper functions
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -168,13 +174,13 @@ namespace mxParser {
     inline void parse_DSO(double& DSO, const mxArray* config) {
         DSO = parse_scalar<double>(config, "DSO");
         if (DSO < 0.0)
-                mexErrMsgIdAndTxt("mxParser:ValueError", "DSO has to be positive");
+            mexErrMsgIdAndTxt("mxParser:ValueError", "DSO has to be positive");
     
     }
     inline void parse_DSD(double& DSD, const mxArray* config) {
         DSD = parse_scalar<double>(config, "DSD");
         if (DSD < 0.0)
-                mexErrMsgIdAndTxt("mxParser:ValueError", "DSD has to be positive");    
+            mexErrMsgIdAndTxt("mxParser:ValueError", "DSD has to be positive");    
     }
 
     inline void parse_nVoxel(dim& nVoxel, const mxArray* config) {
@@ -190,18 +196,18 @@ namespace mxParser {
     inline void parse_nDetector(int& nDetector, const mxArray* config) {
         nDetector = parse_scalar<int>(config, "nDetector");
         if (nDetector < 0.0)
-                mexErrMsgIdAndTxt("mxParser:ValueError", "alpha has to be positive");
+            mexErrMsgIdAndTxt("mxParser:ValueError", "alpha has to be positive");
     
     }
     inline void parse_sDetector(double& sDetector, const mxArray* config) {
         sDetector = parse_scalar<double>(config, "sDetector");
         if (sDetector < 0.0)
-                mexErrMsgIdAndTxt("mxParser:ValueError", "sDetector has to be positive");
+            mexErrMsgIdAndTxt("mxParser:ValueError", "sDetector has to be positive");
     }
     inline void parse_dDetector(double& dDetector, const mxArray* config) {
         dDetector = parse_scalar<double>(config, "dDetector");
         if (dDetector < 0.0)
-                mexErrMsgIdAndTxt("mxParser:ValueError", "dDetector has to be positive");
+            mexErrMsgIdAndTxt("mxParser:ValueError", "dDetector has to be positive");
     }
 
     inline void parse_angles(std::vector<double>& angles, const mxArray* config) {
@@ -214,6 +220,42 @@ namespace mxParser {
         for (auto& angle : angles)
             angle *= M_PI / 180;
     }
+
+    // TGV parameters
+    inline void parse_alpha0(double& alpha0, const mxArray* config) {
+        alpha0 = parse_scalar<double>(config, "alpha0");
+    }
+
+    inline void parse_alpha1(double& alpha1, const mxArray* config) {
+        alpha1 = parse_scalar<double>(config, "alpha1");
+    }
+
+    inline void parse_tau(double& tau, const mxArray* config) {
+        tau = parse_scalar<double>(config, "tau");
+    }
+
+    inline void parse_sigma(double& sigma, const mxArray* config) {
+        sigma = parse_scalar<double>(config, "sigma");
+    }
+
+    inline void parse_lambda(double& lambda, const mxArray* config) {
+        lambda = parse_scalar<double>(config, "lambda");
+    }
+
+    inline void parse_niter(int& niter, const mxArray* config) {
+        niter = parse_scalar<int>(config, "niter");
+    }
+
+    inline void parse_convergence(double& convergence, const mxArray* config) {
+        convergence = parse_scalar<double>(config, "convergence");
+    }
+
+
+    inline void parse_verbose(VerboseOption& verbose, const mxArray* config) {
+
+    }
+
+    VerboseOption verbose; mxParser::parse_verbose(verbose, prhs[1]);
 }
 
 #endif
