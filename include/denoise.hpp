@@ -3,7 +3,7 @@
 
 #include "coord2d.hpp"
 #include "Field.hpp"
-
+#include "fan_beam.hpp"
 
 // Model options
 enum class VerboseOption {SILENT, VERBOSE};
@@ -109,8 +109,18 @@ namespace denoise {
         }
     }
 
-    void update_r(opticalflow::Image& r, const opticalflow::Image& ubar, const opticalflow::Image& p, double sigma) {
-        
+    void update_r(opticalflow::Image& r, const opticalflow::Image& ubar, const opticalflow::Image& p, double sigma,
+        double DSO, double DSD, dim nVoxel, vector2d sVoxel, vector2d dVoxel, int nDetector, double sDetector, double dDetector, const std::vector<double>& angles) {
+        const int nAngles = angles.size();
+
+        opticalflow::Image Kr(dim(nDetector, nAngles)); Kr.fill(0.0);
+        fan_beam::Ax(Kr, ubar, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
+
+        for (std::size_t a = 0; a < nAngles; ++a) {
+            for (std::size_t u = 0; u < nDetector; ++u) {
+                r.set_val(r.get_val(u,a) + sigma * (Kr.get_val(u,a) - p.get_val(u,a)), u,a);
+            }
+        }
     }
 
     void update_u(opticalflow::Image& u,
@@ -122,6 +132,24 @@ namespace denoise {
             for (std::size_t i = 0; i < dimin.x; ++i) {
                 const double divp = opticalflow::gradients::adjoint_dx(px,i,j) + opticalflow::gradients::adjoint_dy(py,i,j);
                 u.set_val(u.get_val(i,j) + tau*divp,i,j);
+            }
+        }
+
+    }
+
+    void update_u(opticalflow::Image& u,
+                  const opticalflow::Image& px, const opticalflow::Image& py, const opticalflow::Image r,
+                  double tau,
+                  double DSO, double DSD, dim nVoxel, vector2d sVoxel, vector2d dVoxel, int nDetector, double sDetector, double dDetector, const std::vector<double>& angles) {
+        const dim dimin = u.get_dimensions();        
+
+        opticalflow::Image Ktr(dimin); Ktr.fill(0.0);
+        fan_beam::Atb(Ktr, r, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
+
+        for (std::size_t j = 0; j < dimin.y; ++j) {
+            for (std::size_t i = 0; i < dimin.x; ++i) {
+                const double divp = opticalflow::gradients::adjoint_dx(px,i,j) + opticalflow::gradients::adjoint_dy(py,i,j);
+                u.set_val(u.get_val(i,j) + tau*(divp - Ktr.get_val(i,j)),i,j);
             }
         }
 
@@ -186,6 +214,16 @@ namespace denoise {
         }
     }
 
+    void prox_r(opticalflow::Image& r, double sigma, double lambda) {
+        const dim dimin = r.get_dimensions();
+
+        for (std::size_t a = 0; a < dimin.y; ++a) {
+            for (std::size_t u = 0; u < dimin.x; ++u) {
+                r.set_val(r.get_val(u,a) / (1.0 + lambda * sigma), u, a);
+            }
+        }
+    }
+
     void prox(opticalflow::Image& u, const opticalflow::Image& f, double tau, double lambda) {
         const dim dimin = u.get_dimensions();
 
@@ -232,7 +270,7 @@ namespace denoise {
             // Update dual variables
             denoise::update_p(px,py,ubar,vbarx,vbary,sigma);
             denoise::update_q(qxx, qyy, qxy, vbarx, vbary, sigma);
-            denoise::update_r(r, ubar, p, sigma);
+            denoise::update_r(r, ubar, p, sigma, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
 
             denoise::proj_p(px,py,alpha1);
             denoise::proj_q(qxx,qyy,qxy,alpha0);
@@ -242,7 +280,7 @@ namespace denoise {
             uold = u;
 
             // Proximal operator
-            denoise::update_u(u, px, py, r, tau);
+            denoise::update_u(u, px, py, r, tau, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
 
             // Update ubar
             ubar = 2*u - uold;
@@ -258,20 +296,20 @@ namespace denoise {
             vbarx = 2*vx - vxold;
             vbary = 2*vy - vyold;
 
-            // Check for convergence
-            double relchange = opticalflow::image::norm(u-uold)/opticalflow::image::norm(u);
-            if (relchange < convergence)
-                break;
+        //     // Check for convergence
+        //     double relchange = opticalflow::image::norm(u-uold)/opticalflow::image::norm(u);
+        //     if (relchange < convergence)
+        //         break;
 
             // Update some norms:
             // if (iter % 50 == 0) {
-            //     std::cout << "iter " << iter 
-            //         << "\t|u_new-u|/|u_new| = " << relchange 
-            //         << "\t1/(2*lambda)*|u-f|^2 = " << opticalflow::image::normsq(u-f) / (2*lambda)
-            //         << "\talpha_1 * |Du - v|_1 = " << denoise::tv_residual_norm(u,vx,vy) * alpha1
-            //         << "\talpha_0 * |Ev|_1 = " << denoise::l1_E_norm(vx,vy) * alpha0
-            //         << std::endl;
-            // }
+                std::cout << "iter " << iter 
+        //             << "\t|u_new-u|/|u_new| = " << relchange 
+        //             // << "\t1/(2*lambda)*|u-f|^2 = " << opticalflow::image::normsq(u-f) / (2*lambda)
+        //             // << "\talpha_1 * |Du - v|_1 = " << denoise::tv_residual_norm(u,vx,vy) * alpha1
+        //             // << "\talpha_0 * |Ev|_1 = " << denoise::l1_E_norm(vx,vy) * alpha0
+                    << std::endl;
+        //     }
         }
 
         return u;

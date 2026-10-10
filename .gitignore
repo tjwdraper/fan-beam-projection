@@ -2,3 +2,4 @@
 build
 include/json.hpp
 mex/*.mex
+docs

@@ -244,13 +244,6 @@ namespace mxParser {
     inline void parse_convergence(double& convergence, const mxArray* config) {
         convergence = parse_scalar<double>(config, "convergence");
     }
-
-
-    inline void parse_verbose(VerboseOption& verbose, const mxArray* config) {
-
-    }
-
-    VerboseOption verbose; mxParser::parse_verbose(verbose, prhs[1]);
 }
 
 #endif
