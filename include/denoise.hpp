@@ -115,6 +115,7 @@ namespace denoise {
 
         opticalflow::Image Kr(dim(nDetector, nAngles)); Kr.fill(0.0);
         fan_beam::Ax(Kr, ubar, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
+        Kr/= 300;
 
         for (std::size_t a = 0; a < nAngles; ++a) {
             for (std::size_t u = 0; u < nDetector; ++u) {
@@ -145,6 +146,7 @@ namespace denoise {
 
         opticalflow::Image Ktr(dimin); Ktr.fill(0.0);
         fan_beam::Atb(Ktr, r, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
+        Ktr /= 300;
 
         for (std::size_t j = 0; j < dimin.y; ++j) {
             for (std::size_t i = 0; i < dimin.x; ++i) {
