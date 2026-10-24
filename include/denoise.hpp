@@ -110,15 +110,15 @@ namespace denoise {
     }
 
     void update_r(opticalflow::Image& r, const opticalflow::Image& ubar, const opticalflow::Image& p, double sigma,
-        double DSO, double DSD, dim nVoxel, vector2d sVoxel, vector2d dVoxel, int nDetector, double sDetector, double dDetector, const std::vector<double>& angles) {
-        const int nAngles = angles.size();
+        const fan_beam_configuration& config) {
+        const int nAngles = config.angles.size();
 
-        opticalflow::Image Kr(dim(nDetector, nAngles)); Kr.fill(0.0);
-        fan_beam::Ax(Kr, ubar, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
+        opticalflow::Image Kr(dim(config.nDetector, config.nAngles)); Kr.fill(0.0);
+        fan_beam::Ax(Kr, ubar, config);
         Kr/= 300;
 
-        for (std::size_t a = 0; a < nAngles; ++a) {
-            for (std::size_t u = 0; u < nDetector; ++u) {
+        for (std::size_t a = 0; a < config.nAngles; ++a) {
+            for (std::size_t u = 0; u < config.nDetector; ++u) {
                 r.set_val(r.get_val(u,a) + sigma * (Kr.get_val(u,a) - p.get_val(u,a)), u,a);
             }
         }
@@ -141,11 +141,11 @@ namespace denoise {
     void update_u(opticalflow::Image& u,
                   const opticalflow::Image& px, const opticalflow::Image& py, const opticalflow::Image r,
                   double tau,
-                  double DSO, double DSD, dim nVoxel, vector2d sVoxel, vector2d dVoxel, int nDetector, double sDetector, double dDetector, const std::vector<double>& angles) {
+                  const fan_beam_configuration& config) {
         const dim dimin = u.get_dimensions();        
 
         opticalflow::Image Ktr(dimin); Ktr.fill(0.0);
-        fan_beam::Atb(Ktr, r, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
+        fan_beam::Atb(Ktr, r, config);
         Ktr /= 300;
 
         for (std::size_t j = 0; j < dimin.y; ++j) {
@@ -239,40 +239,40 @@ namespace denoise {
     // The primal-dual TGV-denoising algorithm
     opticalflow::Image tgv_reconstruct(const opticalflow::Image& p, 
         double tau, double sigma, double lambda, double alpha0, double alpha1, int niter, double convergence, 
-        double DSO, double DSD, dim nVoxel, vector2d sVoxel, vector2d dVoxel, int nDetector, double sDetector, double dDetector, const std::vector<double>& angles) {
+        const fan_beam_configuration& config) {
         
-        const int nAngles = angles.size();
+        const int nAngles = config.angles.size();
 
         // Initialize Primal-Dual variables
-        opticalflow::Image u(nVoxel); u.fill(0.0);
-        opticalflow::Image ubar(nVoxel); ubar.fill(0.0);
+        opticalflow::Image u(config.nVoxel); u.fill(0.0);
+        opticalflow::Image ubar(config.nVoxel); ubar.fill(0.0);
 
-        opticalflow::Image vx(nVoxel); vx.fill(0.0);
-        opticalflow::Image vy(nVoxel); vy.fill(0.0);
+        opticalflow::Image vx(config.nVoxel); vx.fill(0.0);
+        opticalflow::Image vy(config.nVoxel); vy.fill(0.0);
 
-        opticalflow::Image vbarx(nVoxel); vbarx.fill(0.0);
-        opticalflow::Image vbary(nVoxel); vbary.fill(0.0);
+        opticalflow::Image vbarx(config.nVoxel); vbarx.fill(0.0);
+        opticalflow::Image vbary(config.nVoxel); vbary.fill(0.0);
 
-        opticalflow::Image px(nVoxel); px.fill(0.0);
-        opticalflow::Image py(nVoxel); py.fill(0.0);
+        opticalflow::Image px(config.nVoxel); px.fill(0.0);
+        opticalflow::Image py(config.nVoxel); py.fill(0.0);
 
-        opticalflow::Image qxx(nVoxel); qxx.fill(0.0);
-        opticalflow::Image qyy(nVoxel); qyy.fill(0.0);
-        opticalflow::Image qxy(nVoxel); qxy.fill(0.0);
+        opticalflow::Image qxx(config.nVoxel); qxx.fill(0.0);
+        opticalflow::Image qyy(config.nVoxel); qyy.fill(0.0);
+        opticalflow::Image qxy(config.nVoxel); qxy.fill(0.0);
 
-        opticalflow::Image r(dim(nDetector, nAngles)); r.fill(0.0);
+        opticalflow::Image r(dim(config.nDetector, config.nAngles)); r.fill(0.0);
 
         // Tracking variables
-        opticalflow::Image uold(nVoxel); uold.fill(0.0);
-        opticalflow::Image vxold(nVoxel); vxold.fill(0.0);
-        opticalflow::Image vyold(nVoxel); vyold.fill(0.0);    
+        opticalflow::Image uold(config.nVoxel); uold.fill(0.0);
+        opticalflow::Image vxold(config.nVoxel); vxold.fill(0.0);
+        opticalflow::Image vyold(config.nVoxel); vyold.fill(0.0);    
 
         // Primal-dual iterations
         for (int iter = 0; iter < niter; ++iter) {
             // Update dual variables
             denoise::update_p(px,py,ubar,vbarx,vbary,sigma);
             denoise::update_q(qxx, qyy, qxy, vbarx, vbary, sigma);
-            denoise::update_r(r, ubar, p, sigma, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
+            denoise::update_r(r, ubar, p, sigma, config);
 
             denoise::proj_p(px,py,alpha1);
             denoise::proj_q(qxx,qyy,qxy,alpha0);
@@ -282,7 +282,7 @@ namespace denoise {
             uold = u;
 
             // Proximal operator
-            denoise::update_u(u, px, py, r, tau, DSO, DSD, nVoxel, sVoxel, dVoxel, nDetector, sDetector, dDetector, angles);
+            denoise::update_u(u, px, py, r, tau, config);
 
             // Update ubar
             ubar = 2*u - uold;

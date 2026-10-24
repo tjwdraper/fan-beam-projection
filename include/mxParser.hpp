@@ -10,6 +10,7 @@
 #include <map>
 
 #include "coord2d.hpp"
+#include "fan_beam_configuration.hpp"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Helper functions
@@ -159,6 +160,37 @@ inline std::size_t parse_array_size(const mxArray* config, const char* fieldname
 // mxParser namespace
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 namespace mxParser {
+    // Parse fan-beam configuration
+    inline fan_beam_configuration parse_fan_beam_configuration(const mxArray* config) {
+        fan_beam_configuration fb_config;
+
+        // Parse distance to origin
+        fb_config.DSO = parse_scalar<double>(config, "DSO");
+        fb_config.DSD = parse_scalar<double>(config, "DSD");
+
+        fb_config.nVoxel = parse_dim(config, "nVoxel");
+        fb_config.sVoxel = parse_vector(config, "sVoxel");
+        fb_config.dVoxel = parse_vector(config, "dVoxel");
+
+        fb_config.nDetector = parse_scalar<int>(config, "nDetector");
+        fb_config.sDetector = parse_scalar<double>(config, "sDetector");
+        fb_config.dDetector = parse_scalar<double>(config, "dDetector");
+
+        // Parse acquisition angles
+        const int nAngles = parse_array_size(config, "angles");
+        fb_config.angles.resize(nAngles);
+        double* angles_arr = parse_array_ptr<double>(config, "angles");
+        std::copy(angles_arr, angles_arr + nAngles, fb_config.angles.begin());
+
+        for (auto& angle : fb_config.angles)
+            angle *= M_PI / 180;
+
+        fb_config.nAngles = fb_config.angles.size();
+
+        // Done
+        return fb_config;
+    }
+
     // Generic method: check if field exists in Matlab/GNU Octave structure
     inline bool exists(const mxArray* config, const char* fieldname) {
         const mxArray* field = mxGetField(config, 0, fieldname);
@@ -166,55 +198,55 @@ namespace mxParser {
     }
 
 
-    inline void parse_DSO(double& DSO, const mxArray* config) {
-        DSO = parse_scalar<double>(config, "DSO");
-        if (DSO < 0.0)
-            mexErrMsgIdAndTxt("mxParser:ValueError", "DSO has to be positive");
+    // inline void parse_DSO(double& DSO, const mxArray* config) {
+    //     DSO = parse_scalar<double>(config, "DSO");
+    //     if (DSO < 0.0)
+    //         mexErrMsgIdAndTxt("mxParser:ValueError", "DSO has to be positive");
     
-    }
-    inline void parse_DSD(double& DSD, const mxArray* config) {
-        DSD = parse_scalar<double>(config, "DSD");
-        if (DSD < 0.0)
-            mexErrMsgIdAndTxt("mxParser:ValueError", "DSD has to be positive");    
-    }
+    // }
+    // inline void parse_DSD(double& DSD, const mxArray* config) {
+    //     DSD = parse_scalar<double>(config, "DSD");
+    //     if (DSD < 0.0)
+    //         mexErrMsgIdAndTxt("mxParser:ValueError", "DSD has to be positive");    
+    // }
 
-    inline void parse_nVoxel(dim& nVoxel, const mxArray* config) {
-        nVoxel = parse_dim(config, "nVoxel");
-    }
-    inline void parse_sVoxel(vector2d& sVoxel, const mxArray* config) {
-        sVoxel = parse_vector(config, "sVoxel");
-    }
-    inline void parse_dVoxel(vector2d& dVoxel, const mxArray* config) {
-        dVoxel = parse_vector(config, "dVoxel");
-    }
+    // inline void parse_nVoxel(dim& nVoxel, const mxArray* config) {
+    //     nVoxel = parse_dim(config, "nVoxel");
+    // }
+    // inline void parse_sVoxel(vector2d& sVoxel, const mxArray* config) {
+    //     sVoxel = parse_vector(config, "sVoxel");
+    // }
+    // inline void parse_dVoxel(vector2d& dVoxel, const mxArray* config) {
+    //     dVoxel = parse_vector(config, "dVoxel");
+    // }
 
-    inline void parse_nDetector(int& nDetector, const mxArray* config) {
-        nDetector = parse_scalar<int>(config, "nDetector");
-        if (nDetector < 0.0)
-            mexErrMsgIdAndTxt("mxParser:ValueError", "alpha has to be positive");
+    // inline void parse_nDetector(int& nDetector, const mxArray* config) {
+    //     nDetector = parse_scalar<int>(config, "nDetector");
+    //     if (nDetector < 0.0)
+    //         mexErrMsgIdAndTxt("mxParser:ValueError", "alpha has to be positive");
     
-    }
-    inline void parse_sDetector(double& sDetector, const mxArray* config) {
-        sDetector = parse_scalar<double>(config, "sDetector");
-        if (sDetector < 0.0)
-            mexErrMsgIdAndTxt("mxParser:ValueError", "sDetector has to be positive");
-    }
-    inline void parse_dDetector(double& dDetector, const mxArray* config) {
-        dDetector = parse_scalar<double>(config, "dDetector");
-        if (dDetector < 0.0)
-            mexErrMsgIdAndTxt("mxParser:ValueError", "dDetector has to be positive");
-    }
+    // }
+    // inline void parse_sDetector(double& sDetector, const mxArray* config) {
+    //     sDetector = parse_scalar<double>(config, "sDetector");
+    //     if (sDetector < 0.0)
+    //         mexErrMsgIdAndTxt("mxParser:ValueError", "sDetector has to be positive");
+    // }
+    // inline void parse_dDetector(double& dDetector, const mxArray* config) {
+    //     dDetector = parse_scalar<double>(config, "dDetector");
+    //     if (dDetector < 0.0)
+    //         mexErrMsgIdAndTxt("mxParser:ValueError", "dDetector has to be positive");
+    // }
 
-    inline void parse_angles(std::vector<double>& angles, const mxArray* config) {
-        const int nAngles = parse_array_size(config, "angles");
-        angles.resize(nAngles);
-        double* angles_arr = parse_array_ptr<double>(config, "angles");
-        std::copy(angles_arr, angles_arr + nAngles, angles.begin());
+    // inline void parse_angles(std::vector<double>& angles, const mxArray* config) {
+    //     const int nAngles = parse_array_size(config, "angles");
+    //     angles.resize(nAngles);
+    //     double* angles_arr = parse_array_ptr<double>(config, "angles");
+    //     std::copy(angles_arr, angles_arr + nAngles, angles.begin());
 
-        // From degrees to radians
-        for (auto& angle : angles)
-            angle *= M_PI / 180;
-    }
+    //     // From degrees to radians
+    //     for (auto& angle : angles)
+    //         angle *= M_PI / 180;
+    // }
 
     // TGV parameters
     inline void parse_alpha0(double& alpha0, const mxArray* config) {

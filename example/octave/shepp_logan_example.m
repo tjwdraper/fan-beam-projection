@@ -22,7 +22,7 @@ config.nDetector = int32(512);
 config.dDetector = 0.8;
 config.sDetector = 409.6;
 
-config.angles = 0:2:180;
+config.angles = 0:5:180;
 
 % Create projection data
 tic;
@@ -33,11 +33,11 @@ time = toc;
 figure(); imagesc(proj);
 
 % Add TGV parameters to configuration
-config.alpha0 = 2.0;
+config.alpha0 = 5.0;
 config.alpha1 = 1.0;
 config.tau = 0.2;
 config.sigma = 0.2;
-config.lambda = 0.05;
+config.lambda = 0.1;
 config.niter = 1000;
 config.convergence = 1e-6;
 

@@ -3,7 +3,7 @@
 
 #include "coord2d.hpp"
 #include "Field.hpp"
-
+#include "fan_beam_configuration.hpp"
 
 
 #include <cmath>
@@ -20,12 +20,12 @@ namespace fan_beam {
     }
 
     // Helper functions
-    inline vector2d get_source_position(double angle, double DSO) {
-        return rotate(vector2d(DSO,0), angle);
+    inline vector2d get_source_position(double angle, const fan_beam_configuration& config) {
+        return rotate(vector2d(config.DSO,0), angle);
     }
 
-    inline vector2d get_detector_pixel_position(int u, double angle, double DSO, double DSD, double dDetector, double sDetector) {
-        return rotate(vector2d(-(DSD-DSO),(u+0.5)*dDetector -sDetector/2.0), angle);
+    inline vector2d get_detector_pixel_position(int u, double angle, const fan_beam_configuration& config) {
+        return rotate(vector2d(-(config.DSD-config.DSO),(u+0.5)*config.dDetector -config.sDetector/2.0), angle);
     }
 
     // Traverse a ray and call visit(x, y, segment_length) for every
@@ -34,16 +34,14 @@ namespace fan_beam {
     inline void trace_ray(
         vector2d source,
         vector2d dir,
-        dim nVoxel,
-        vector2d sVoxel,
-        vector2d dVoxel,
         double rayLength,
+        const fan_beam_configuration& config,
         Visit visit
     ) {
-        const double xmin = -0.5 * sVoxel.x;
-        const double ymin = -0.5 * sVoxel.y;
-        const double xmax = xmin + nVoxel.x * dVoxel.x;
-        const double ymax = ymin + nVoxel.y * dVoxel.y;
+        const double xmin = -0.5 * config.sVoxel.x;
+        const double ymin = -0.5 * config.sVoxel.y;
+        const double xmax = xmin + config.nVoxel.x * config.dVoxel.x;
+        const double ymax = ymin + config.nVoxel.y * config.dVoxel.y;
 
         // Clip ray parameter t to [0, 1] and the volume bounding box.
         double tEnter = 0.0;
@@ -81,11 +79,11 @@ namespace fan_beam {
             source.y + (tEnter + 1.0) * dir.y
         );
 
-        int ix = static_cast<int>(std::floor((px - xmin) / dVoxel.x));
-        int iy = static_cast<int>(std::floor((py - ymin) / dVoxel.y));
+        int ix = static_cast<int>(std::floor((px - xmin) / config.dVoxel.x));
+        int iy = static_cast<int>(std::floor((py - ymin) / config.dVoxel.y));
 
-        ix = std::max(0, std::min(ix, static_cast<int>(nVoxel.x) - 1));
-        iy = std::max(0, std::min(iy, static_cast<int>(nVoxel.y) - 1));
+        ix = std::max(0, std::min(ix, static_cast<int>(config.nVoxel.x) - 1));
+        iy = std::max(0, std::min(iy, static_cast<int>(config.nVoxel.y) - 1));
 
         const int stepX = (dir.x > 0.0) - (dir.x < 0.0);
         const int stepY = (dir.y > 0.0) - (dir.y < 0.0);
@@ -93,29 +91,29 @@ namespace fan_beam {
         const double inf = std::numeric_limits<double>::infinity();
 
         const double tDeltaX =
-            stepX == 0 ? inf : dVoxel.x / std::abs(dir.x);
+            stepX == 0 ? inf : config.dVoxel.x / std::abs(dir.x);
         const double tDeltaY =
-            stepY == 0 ? inf : dVoxel.y / std::abs(dir.y);
+            stepY == 0 ? inf : config.dVoxel.y / std::abs(dir.y);
 
         double tMaxX = inf;
         double tMaxY = inf;
 
         if (stepX != 0) {
             const double boundary = xmin +
-                (stepX > 0 ? ix + 1 : ix) * dVoxel.x;
+                (stepX > 0 ? ix + 1 : ix) * config.dVoxel.x;
             tMaxX = (boundary - source.x) / dir.x;
         }
 
         if (stepY != 0) {
             const double boundary = ymin +
-                (stepY > 0 ? iy + 1 : iy) * dVoxel.y;
+                (stepY > 0 ? iy + 1 : iy) * config.dVoxel.y;
             tMaxY = (boundary - source.y) / dir.y;
         }
 
         double t = tEnter;
 
-        while (t < tExit && ix >= 0 && ix < nVoxel.x &&
-            iy >= 0 && iy < nVoxel.y) {
+        while (t < tExit && ix >= 0 && ix < config.nVoxel.x &&
+            iy >= 0 && iy < config.nVoxel.y) {
 
             const double tNext = std::min({tMaxX, tMaxY, tExit});
 
@@ -169,59 +167,56 @@ namespace fan_beam {
         return t;
     }
 
-    inline double accumulate_ray(std::vector<double>& events, const opticalflow::Image& image, vector2d position_source, vector2d dir, vector2d sVoxel, vector2d dVoxel, double DSP) {
-        double p = 0.0;
-        const dim dimin = image.get_dimensions();
-        for (std::size_t i = 0; i < events.size()-1; ++i) {
-            double dt = events[i+1] - events[i];
+    // inline double accumulate_ray(std::vector<double>& events, const opticalflow::Image& image, vector2d position_source, vector2d dir, vector2d sVoxel, vector2d dVoxel, double DSP) {
+    //     double p = 0.0;
+    //     const dim dimin = image.get_dimensions();
+    //     for (std::size_t i = 0; i < events.size()-1; ++i) {
+    //         double dt = events[i+1] - events[i];
 
-            double mid_point = 0.5 * (events[i] + events[i+1]);
-            int x = static_cast<int>(std::floor((position_source.x + mid_point * dir.x + sVoxel.x/2.0)/dVoxel.x));
-            int y = static_cast<int>(std::floor((position_source.y + mid_point * dir.y + sVoxel.y/2.0)/dVoxel.y));
+    //         double mid_point = 0.5 * (events[i] + events[i+1]);
+    //         int x = static_cast<int>(std::floor((position_source.x + mid_point * dir.x + sVoxel.x/2.0)/dVoxel.x));
+    //         int y = static_cast<int>(std::floor((position_source.y + mid_point * dir.y + sVoxel.y/2.0)/dVoxel.y));
 
-            if (x < 0 || x >= dimin.x || y < 0 || y >= dimin.y)
-                continue;
+    //         if (x < 0 || x >= dimin.x || y < 0 || y >= dimin.y)
+    //             continue;
 
-            p += dt * DSP * image.get_val(x,y);
-        }
-        return p;
-    }
+    //         p += dt * DSP * image.get_val(x,y);
+    //     }
+    //     return p;
+    // }
 
-    inline void adjoint_accumulate_ray(opticalflow::Image& backproj, const std::vector<double>& events, const double p, vector2d position_source, vector2d dir, vector2d sVoxel, vector2d dVoxel, double DSP) {
-        const dim dimin = backproj.get_dimensions();
-        for (std::size_t i = 0; i < events.size()-1; ++i) {
-            double dt = events[i+1] - events[i];
+    // inline void adjoint_accumulate_ray(opticalflow::Image& backproj, const std::vector<double>& events, const double p, vector2d position_source, vector2d dir, vector2d sVoxel, vector2d dVoxel, double DSP) {
+    //     const dim dimin = backproj.get_dimensions();
+    //     for (std::size_t i = 0; i < events.size()-1; ++i) {
+    //         double dt = events[i+1] - events[i];
 
-            double mid_point = 0.5 * (events[i] + events[i+1]);
-            int x = static_cast<int>(std::floor((position_source.x + mid_point * dir.x + sVoxel.x/2.0)/dVoxel.x));
-            int y = static_cast<int>(std::floor((position_source.y + mid_point * dir.y + sVoxel.y/2.0)/dVoxel.y));
+    //         double mid_point = 0.5 * (events[i] + events[i+1]);
+    //         int x = static_cast<int>(std::floor((position_source.x + mid_point * dir.x + sVoxel.x/2.0)/dVoxel.x));
+    //         int y = static_cast<int>(std::floor((position_source.y + mid_point * dir.y + sVoxel.y/2.0)/dVoxel.y));
 
-            if (x < 0 || x >= dimin.x || y < 0 || y >= dimin.y)
-                continue;
+    //         if (x < 0 || x >= dimin.x || y < 0 || y >= dimin.y)
+    //             continue;
 
-            backproj.set_val(backproj.get_val(x,y) + dt * DSP * p,x,y);
-        }
-    }
+    //         backproj.set_val(backproj.get_val(x,y) + dt * DSP * p,x,y);
+    //     }
+    // }
 
     // Forward projection
     inline void Ax(opticalflow::Image& projections,
         const opticalflow::Image& image,
-        double DSO, double DSD,
-        dim nVoxel, vector2d sVoxel, vector2d dVoxel,
-        int nDetector, double sDetector, double dDetector,
-        const std::vector<double>& angles
+        const fan_beam_configuration& config
     ) {
         // Iterate over rotation angles
-        for (std::size_t a = 0; a < angles.size(); ++a) {
+        for (std::size_t a = 0; a < config.angles.size(); ++a) {
             // Get the current rotation angle
-            const double angle = angles[a];
+            const double angle = config.angles[a];
 
             // Calculate position of the source
-            vector2d position_source = get_source_position(angle, DSO);
+            vector2d position_source = fan_beam::get_source_position(angle, config);
 
-            for (std::size_t u = 0; u < nDetector; ++u) {
+            for (std::size_t u = 0; u < config.nDetector; ++u) {
                 // Get the position of the voxel in mm and the direction vector between the source and current pixel:
-                vector2d position_detector_pixel = get_detector_pixel_position(u, angle, DSO, DSD, dDetector, sDetector);
+                vector2d position_detector_pixel = fan_beam::get_detector_pixel_position(u, angle, config);
                 vector2d dir = position_detector_pixel - position_source;
 
                 // Get the length of the ray
@@ -229,7 +224,7 @@ namespace fan_beam {
 
                 // Calculate the contribution of the ray
                 double sum = 0.0;
-                trace_ray(position_source, dir, nVoxel, sVoxel, dVoxel, DSP, 
+                fan_beam::trace_ray(position_source, dir, DSP, config, 
                     [&](int x, int y, double length) {
                         sum += length*image.get_val(x,y);
                     }
@@ -249,22 +244,19 @@ namespace fan_beam {
 
     inline void Atb(opticalflow::Image& backproj,
         const opticalflow::Image& projections,
-        double DSO, double DSD,
-        dim nVoxel, vector2d sVoxel, vector2d dVoxel,
-        int nDetector, double sDetector, double dDetector,
-        const std::vector<double>& angles
+        const fan_beam_configuration& config
     ) {
         // Iterate over rotation angles
-        for (std::size_t a = 0; a < angles.size(); ++a) {
+        for (std::size_t a = 0; a < config.angles.size(); ++a) {
             // Get the current rotation angle
-            const double angle = angles[a];
+            const double angle = config.angles[a];
 
             // Calculate position of the 
-            vector2d position_source = get_source_position(angle, DSO);
+            vector2d position_source = fan_beam::get_source_position(angle, config);
 
-            for (std::size_t u = 0; u < nDetector; ++u) {
+            for (std::size_t u = 0; u < config.nDetector; ++u) {
                 // Get the position of the voxel in mm and the direction vector between the source and current pixel:
-                vector2d position_detector_pixel = get_detector_pixel_position(u, angle, DSO, DSD, dDetector, sDetector);
+                vector2d position_detector_pixel = fan_beam::get_detector_pixel_position(u, angle, config);
                 vector2d dir = position_detector_pixel - position_source;
 
                 // Get the length of the ray
@@ -272,7 +264,7 @@ namespace fan_beam {
                 const double p = projections.get_val(u,a);
 
                 // Calculate the contribution of the ray
-                trace_ray(position_source, dir, nVoxel, sVoxel, dVoxel, DSP, 
+                fan_beam::trace_ray(position_source, dir, DSP, config, 
                     [&](int x, int y, double length) {
                         backproj.set_val(backproj.get_val(x,y) + length*p, x, y);
                     }
