@@ -9,7 +9,7 @@
 #include "coord2d.hpp"
 #include "mxParser.hpp"
 #include "Field.hpp"
-#include "denoise.hpp"
+#include "fan_beam.hpp"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Main function
@@ -20,23 +20,6 @@ void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     // Read fan-beam configuration
     fan_beam_configuration config = mxParser::parse_fan_beam_configuration(prhs[1]);
-
-    // // Read geometry
-    // double DSO; mxParser::parse_DSO(DSO, prhs[1]);
-    // double DSD; mxParser::parse_DSD(DSD, prhs[1]);
-
-    // dim nVoxel; mxParser::parse_nVoxel(nVoxel, prhs[1]);
-    // vector2d sVoxel; mxParser::parse_sVoxel(sVoxel, prhs[1]);
-    // vector2d dVoxel; mxParser::parse_dVoxel(dVoxel, prhs[1]);
-
-    // int nDetector; mxParser::parse_nDetector(nDetector, prhs[1]);
-    // double dDetector; mxParser::parse_dDetector(dDetector, prhs[1]);
-    // double sDetector; mxParser::parse_sDetector(sDetector, prhs[1]);
-
-    // std::vector<double> angles;
-    // mxParser::parse_angles(angles, prhs[1]);
-
-    // int nAngles = angles.size();
 
     // Read the TGV parameters
     double alpha0; mxParser::parse_alpha0(alpha0, prhs[1]);
@@ -58,7 +41,7 @@ void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     // Reconstruct image
     const auto start = std::chrono::steady_clock::now();
-    image = denoise::tgv_reconstruct(
+    image = fan_beam::tgv_reconstruct(
         projections, 
         tau, sigma, lambda, alpha0, alpha1, niter, convergence,
         config

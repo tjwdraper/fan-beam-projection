@@ -18,23 +18,6 @@ void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // Read fan-beam configuration
     fan_beam_configuration config = mxParser::parse_fan_beam_configuration(prhs[1]);
 
-    // // Read geometry
-    // double DSO; mxParser::parse_DSO(DSO, prhs[1]);
-    // double DSD; mxParser::parse_DSD(DSD, prhs[1]);
-
-    // dim nVoxel; mxParser::parse_nVoxel(nVoxel, prhs[1]);
-    // vector2d sVoxel; mxParser::parse_sVoxel(sVoxel, prhs[1]);
-    // vector2d dVoxel; mxParser::parse_dVoxel(dVoxel, prhs[1]);
-
-    // int nDetector; mxParser::parse_nDetector(nDetector, prhs[1]);
-    // double dDetector; mxParser::parse_dDetector(dDetector, prhs[1]);
-    // double sDetector; mxParser::parse_sDetector(sDetector, prhs[1]);
-
-    // std::vector<double> angles;
-    // mxParser::parse_angles(angles, prhs[1]);
-
-    // int nAngles = angles.size();
-
     // Load projections
     opticalflow::Image projections(dim(config.nDetector, config.nAngles));
     double* tmp = (double*) mxGetPr(prhs[0]);

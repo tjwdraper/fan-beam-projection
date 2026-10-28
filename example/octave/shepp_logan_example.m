@@ -22,32 +22,32 @@ config.nDetector = int32(512);
 config.dDetector = 0.8;
 config.sDetector = 409.6;
 
-config.angles = 0:5:180;
+config.angles = 0:10:360;
 
 % Create projection data
 tic;
 proj = Ax_mex(img, config);
-back_proj = Atb_mex(proj, config);
+%back_proj = Atb_mex(proj, config);
 time = toc;
 
 figure(); imagesc(proj);
 
-% Add TGV parameters to configuration
-config.alpha0 = 5.0;
-config.alpha1 = 1.0;
-config.tau = 0.2;
-config.sigma = 0.2;
-config.lambda = 0.1;
-config.niter = 1000;
-config.convergence = 1e-6;
-
-
-img_recon = fan_beam_reconstruction(proj, config);
-
-% Show
-figure();
-subplot(121); imagesc(img);
-subplot(122); imagesc(img_recon);
-
-% Clear functions
-clear functions;
+##% Add TGV parameters to configuration
+##config.alpha0 = 5.0;
+##config.alpha1 = 1.0;
+##config.tau = 0.2;
+##config.sigma = 0.2;
+##config.lambda = 0.1;
+##config.niter = 1000;
+##config.convergence = 1e-6;
+##
+##
+##img_recon = fan_beam_reconstruction(proj, config);
+##
+##% Show
+##figure();
+##subplot(121); imagesc(img);
+##subplot(122); imagesc(img_recon);
+##
+##% Clear functions
+##clear functions;
