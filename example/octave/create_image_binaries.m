@@ -11,8 +11,6 @@ end
 img = phantom();
 
 fid = fopen('img/shepp_logan_gt.bin', 'wb');
-fwrite(fid, size(img, 1), 'double');
-fwrite(fid, size(img, 2), 'double');
 fwrite(fid, img, 'double');
 fclose(fid);
 

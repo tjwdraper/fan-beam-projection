@@ -10,6 +10,10 @@
         "dVoxel": [1, 1],
         "nDetector": 512,
         "dDetector": 0.8,
-        "sDetector": 409.6
+        "sDetector": 409.6,
+
+        "minAngle": 0.0,
+        "maxAngle": 360.0,
+        "nAngles": 180
     }
 }
