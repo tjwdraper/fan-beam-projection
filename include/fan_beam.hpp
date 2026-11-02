@@ -16,7 +16,10 @@ inline int sgn(const double x) {
     return (x > 0) - (x < 0);
 }
 
-inline void clip_axis(double& tEnter, double& tExit, const double s, const double d, const double lo, const double hi) {
+inline bool clip_axis(double& tEnter, double& tExit, const double s, const double d, const double lo, const double hi) {
+    if (std::abs(d) < 1e-12)
+        return s >= lo && s <= hi;
+
     double a = (lo - s) / d;
     double b = (hi - s) / d;
 
@@ -26,8 +29,7 @@ inline void clip_axis(double& tEnter, double& tExit, const double s, const doubl
     tEnter = std::max(tEnter, a);
     tExit = std::min(tExit, b);
 
-    if (tEnter > tExit)
-        throw std::runtime_error("In clip_axis(double&, double&, const double, const double, const double, const double): tEnter > tExit.");
+    return tEnter < tExit;
 }
 
 namespace fan_beam {
@@ -55,11 +57,18 @@ namespace fan_beam {
         const int nx = static_cast<int>(config.nVoxel.x);
         const int ny = static_cast<int>(config.nVoxel.y);
 
+        const double cx = static_cast<double>(nx)/2 - 0.5;
+        const double cy = static_cast<double>(ny)/2 - 0.5;
+
         const double dVoxelX = config.dVoxel.x;
         const double dVoxelY = config.dVoxel.y;
 
-        const double hx = 0.5 * config.sVoxel.x;
-        const double hy = 0.5 * config.sVoxel.y;
+        const double xmin = -(cx + 0.5) * dVoxelX;
+        const double xmax = (cx + 0.5) * dVoxelX;
+        const double ymin = -(cy + 0.5) * dVoxelY;
+        const double ymax = (cy + 0.5) * dVoxelY;
+
+        std::cout << "xmin: " << xmin << " xmax: " << xmax << " ymin: " << ymin << " ymax: " << ymax << std::endl;
 
         if (nx <= 0 || ny <= 0 || dVoxelX <= 0 || dVoxelY <= 0)
             return 0.0;
@@ -78,165 +87,335 @@ namespace fan_beam {
         int rayOrientationX = sgn(dir.x);
         int rayOrientationY = sgn(dir.y);
 
-        // Compute the physical location when the ray enters the image volume
-        const double xmin = -hx;
-        const double xmax = hx;
-        const double ymin = -hy;
-        const double ymax = hy;
-
-        double px_mm, py_mm;
-        if (rayOrientationX == 1)
-            px_mm = std::max(xmin, source.x);
-        else if (rayOrientationX == -1)
-            px_mm = std::min(xmax, source.x);
-        else {
-            if (source.x < xmin || source.x > xmax)
-                throw std::runtime_error("If ray is perpendicular, it has to be contained in image dimensions to intersect.");
-            px_mm = source.x;
-        }
-
-        if (rayOrientationY == 1)
-            py_mm = std::max(ymin, source.y);
-        else if (rayOrientationY == -1)
-            py_mm = std::min(ymax, source.y);
-        else {
-            if (source.y < ymin || source.y > ymax)
-                throw std::runtime_error("If ray is perpendicular, it has to be contained in image dimensions to intersect.");
-            py_mm = source.y;
-        }
+        if (rayOrientationX == 0 && rayOrientationY == 0)
+            throw std::runtime_error("Both ray orientations cannot be zero simultaneously.");
 
 
-        double px = (px_mm + hx) / dVoxelX;
-        double py = (py_mm + hy) / dVoxelY;
 
-        int dx = static_cast<int>(std::floor(px));
-        int dy = static_cast<int>(std::floor(py));
 
-        if (dx < 0 || dx > nx-1 || dy < 0 || dy > ny-1)
-            throw std::runtime_error("In accumulate_ray, invalid entry location of ray in image volume");
 
-        // Compute projection
-        double p(0.0);
+        // Compute the intersection
+        // double t;
+        // if (dominantAxis == Dimension::X) {
+        //     // Treat parallel beam
+        //     if (rayOrientationX == 0) {
+        //         if (source.x < xmin || source.x > xmax)
+        //             throw std::runtime_error("tStart could not be determined");
+                
+        //         t = (rayOrientationY == 1 ? (ymin - source.y) / dir.y : (ymax - source.y) / dir.y);
+        //         if (t < 0 || t > 1)
+        //             throw std::runtime_error("tStart could not be determined");
+        //     }
+        //     else {
+        //         double bound = (rayOrientationX == 1 ? xmin : xmax);
+        //         for (int i = 0; i < nx; i++) {
+        //             bound += dVoxelX * rayOrientationX;
 
-        // Iterate through x-dimension, interpolate over y-axis
-        if (dominantAxis == Dimension::X) {
-            while (dx > 0 && dx < nx-1 && dy > 0 && dy < ny-1) {
-                const double f = py - dy;
+        //             // Compute event time
+        //             t = (bound - source.x) / dir.x;
 
-                p += (1-f) * image.get_val(dx, dy) + f * image.get_val(dx, std::min(dy+1, ny-1));
+        //             // Check t is valid value
+        //             if (t < 0 || t > 1) {
+        //                 if (i == nx-1)
+        //                     throw std::runtime_error("Could not determine intersection time!");
+        //                 continue;
+        //             }
 
-                // Increment
-                px += rayOrientationX;
-                py += dir.y / dir.x;
+        //             // Compute y-value. Guarantee it is a valid image position
+        //             double y = source.y + t * dir.y;
+        //             if (y >= ymin && y <= ymax)
+        //                 break;
+        //         }
+        //     }
+        // }
+        // else if (dominantAxis == Dimension::Y) {
+        //     // Treat parallel beam
+        //     if (rayOrientationY == 0) {
+        //         if (source.y < ymin || source.y > ymax)
+        //             throw std::runtime_error("tStart could not be determined");
+                
+        //         t = (rayOrientationX == 1 ? (xmin - source.x) / dir.x : (xmax - source.x) / dir.x);
+        //         if (t < 0 || t > 1)
+        //             throw std::runtime_error("tStart could not be determined");
+        //     }
+        //     else {
+        //         double bound = (rayOrientationY == 1 ? ymin : ymax);
+        //         for (int i = 0; i < ny; i++) {
+        //             bound += dVoxelY * rayOrientationY;
 
-                dx = static_cast<int>(std::floor(px));
-                dy = static_cast<int>(std::floor(py));
-            }
-        }
-        else if (dominantAxis == Dimension::Y) {
-            while (dx > 0 && dx < nx-1 && dy > 0 && dy < ny-1) {
-                const double f = px - dx;
+        //             // Compute event time
+        //             t = (bound - source.y) / dir.y;
 
-                p += (1-f) * image.get_val(dx, dy) + f * image.get_val(std::min(dx+1, nx-1), dy);
+        //             // Check t is valid value
+        //             if (t < 0 || t > 1) {
+        //                 if (i == ny-1)
+        //                     throw std::runtime_error("Could not determine intersection time!");
+        //                 continue;
+        //             }
 
-                // Increment
-                px += dir.x / dir.y;
-                py += rayOrientationY;
+        //             // Compute y-value. Guarantee it is a valid image position
+        //             double x = source.x + t * dir.x;
+        //             if (x >= xmin && x <= xmax)
+        //                 break;
+        //         }
+        //     }
+        // }
 
-                dx = static_cast<int>(std::floor(px));
-                dy = static_cast<int>(std::floor(py));
-            }
-        }
+        // double px_mm = source.x + t * dir.x;
+        // double py_mm = source.y + t * dir.y;
 
-        // Done
-        return p;
-    }
-
-    template <typename Visit>
-    inline void trace_ray(
-        vector2d source, 
-        vector2d dir, 
-        double rayLength,
-        const fan_beam_configuration& config,
-        Visit visit
-    ) {
-        // Get physical location of image edge (in mm)
-        const double cx = 0.5*config.sVoxel.x; //config.dVoxel.x * (0.5 * config.nVoxel.x);
-        const double cy = 0.5*config.sVoxel.y; //config.dVoxel.y * (0.5 * config.nVoxel.y);
-        const double xmin = -cx; const double xmax = cx;
-        const double ymin = -cy; const double ymax = cy;
-
-        // Calculate the values of t when the ray enters the image domain, and when it exits
+        // Compute intersection with the image rectangle.
         double tEnter = 0.0;
-        double tExit = 1.0;
+        double tExit  = 1.0;
 
-        clip_axis(tEnter, tExit, source.x, dir.x, xmin, xmax);
-        clip_axis(tEnter, tExit, source.y, dir.y, ymin, ymax);
+        if (!clip_axis(tEnter, tExit, source.x, dir.x, xmin, xmax) ||
+            !clip_axis(tEnter, tExit, source.y, dir.y, ymin, ymax) ||
+            tEnter < 0 || tEnter > 1 ||
+            tExit < 0 || tExit > 1 || 
+            tEnter >= tExit)
+        {
+            return 0.0; // No positive-length intersection.
+        }
 
-        if (tEnter > tExit)
-            return;
+        double p = 0.0;
 
-        // Get the orientation of the ray: is it moving in the positive/negative x/y dimensions
-        double beamOrientationX = sgn(dir.x);
-        double beamOrientationY = sgn(dir.y);
+        if (dominantAxis == Dimension::X)
+        {
+            if (std::abs(dir.x) < 1e-12)
+                return 0.0;
 
-        // Calculate the position where the ray enters the image. Use std::nextafter to infinitesimally move into the image domain.
-        double px = std::nextafter(source.x + tEnter * dir.x, source.x + (tEnter + 1.0) * dir.x);
-        double py = std::nextafter(source.y + tEnter * dir.y, source.y + (tEnter + 1.0) * dir.y);
+            const double dt = dVoxelX / std::abs(dir.x);
+
+            while (tEnter < tExit)
+            {
+                // Current integration interval.
+                const double t0 = tEnter;
+                const double t1 = std::min(t0 + dt, tExit);
+
+                // Sample at the midpoint of the interval.
+                const double tm = 0.5 * (t0 + t1);
+
+                const double x = source.x + tm * dir.x;
+                const double y = source.y + tm * dir.y;
+
+                // Continuous pixel-center coordinates.
+                const double px = x / dVoxelX + cx;
+                double py = y / dVoxelY + cy;
+
+                // Major-axis pixel index.
+                int ix = static_cast<int>(std::floor(px + 0.5));
+                ix = std::clamp(ix, 0, nx - 1);
+
+                // Clamp minor coordinate to image edges.
+                py = std::clamp(py, 0.0, static_cast<double>(ny - 1));
+
+                const int iy0 = static_cast<int>(std::floor(py));
+                const int iy1 = std::min(iy0 + 1, ny - 1);
+
+                const double fy = py - iy0;
+
+                const double value =
+                    (1.0 - fy) * image.get_val(ix, iy0) +
+                    fy         * image.get_val(ix, iy1);
+
+                // Physical length represented by this sample.
+                const double ds = (t1 - t0) * rayLength;
+
+                p += value * ds;
+
+                tEnter = t1;
+            }
+        }
+        else
+        {
+            if (std::abs(dir.y) < 1e-12)
+                return 0.0;
+
+            const double dt = dVoxelY / std::abs(dir.y);
+
+            while (tEnter < tExit)
+            {
+                const double t0 = tEnter;
+                const double t1 = std::min(t0 + dt, tExit);
+
+                const double tm = 0.5 * (t0 + t1);
+
+                const double x = source.x + tm * dir.x;
+                const double y = source.y + tm * dir.y;
+
+                const double px = x / dVoxelX + cx;
+                const double py = y / dVoxelY + cy;
+
+                int iy = static_cast<int>(std::floor(py + 0.5));
+                iy = std::clamp(iy, 0, ny - 1);
+
+                double pxClamped = std::clamp(
+                    px, 0.0, static_cast<double>(nx - 1));
+
+                const int ix0 = static_cast<int>(std::floor(pxClamped));
+                const int ix1 = std::min(ix0 + 1, nx - 1);
+
+                const double fx = pxClamped - ix0;
+
+                const double value =
+                    (1.0 - fx) * image.get_val(ix0, iy) +
+                    fx         * image.get_val(ix1, iy);
+
+                const double ds = (t1 - t0) * rayLength;
+
+                p += value * ds;
+
+                tEnter = t1;
+            }
+        }
+
+        return p;
         
-        // Convert to voxel coordinates, clip to the image boundary
-        int dx = static_cast<int>(std::floor((px + cx) / config.dVoxel.x));
-        int dy = static_cast<int>(std::floor((py + cy) / config.dVoxel.y));
 
-        dx = std::min(static_cast<int>(config.nVoxel.x-1), std::max(0, dx));
-        dy = std::min(static_cast<int>(config.nVoxel.y-1), std::max(0, dy));
+        // // Calculate the entry point.
+        // const double px_mm = source.x + tEnter * dir.x;
+        // const double py_mm = source.y + tEnter * dir.y;
 
-        // Compute time it takes to traverse of voxel in the x- and y-direction. If the ray is parallel to the cooridinate axes 
-        // (which is the case if beamOrientationXY == 0), it takes infinite time to traverse between voxel boundaries.
-        const double xdt = beamOrientationX == 0 ? std::numeric_limits<double>::infinity() : config.dVoxel.x / std::abs(dir.x);
-        const double ydt = beamOrientationY == 0 ? std::numeric_limits<double>::infinity() : config.dVoxel.y / std::abs(dir.y);
+        // std::cout << "px_mm: " << px_mm << " py_mm: " << py_mm << std::endl;
 
-        // Compute the time the ray passes through the next boundary as seen from the first voxel entry
-        double tNextX = std::numeric_limits<double>::infinity();
-        double tNextY = std::numeric_limits<double>::infinity();
+        // // if (px_mm < xmin || px_mm > xmax || py_mm < ymin || py_mm > ymax)
+        // //     throw std::runtime_error("Determined intersection values are not in image volume!!");
 
-        if (beamOrientationX != 0) {
-            const double boundary = xmin + (beamOrientationX > 0 ? dx + 1 : dx) * config.dVoxel.x;
-            tNextX = (boundary - source.x) / dir.x;
-        }
-        if (beamOrientationY != 0) {
-            const double boundary = ymin + (beamOrientationY > 0 ? dy + 1 : dy) * config.dVoxel.y;
-            tNextY = (boundary - source.y) / (dir.y);
-        }
+        // // Convert from physical dimensions to image index
+        // double px = (px_mm - xmin) / dVoxelX;
+        // double py = (py_mm - ymin) / dVoxelY;
 
-        // Move through the participating voxels in the image domain
-        double tCur = tEnter;
-        while(tCur < tExit &&
-            dx >= 0 && dx <= config.nVoxel.x-1 &&
-            dy >= 0 && dy <= config.nVoxel.y-1) {
+        // int dx = static_cast<int>(std::floor(px));
+        // int dy = static_cast<int>(std::floor(py));
 
-            // Compute the time of the next event
-            const double tNext = std::min({tNextX, tNextY, tExit});
 
-            // Compute contribution of current voxel
-            if (tNext > tCur)
-                visit(dx, dy, (tNext - tCur) * rayLength);
+        // std::cout << "dx: " << dx << " dy: " << dy << std::endl;
+        // if (dx < 0 || dx > nx-1 || dy < 0 || dy > ny-1)
+        //     throw std::runtime_error("Index error:");
 
-            // Update variables
-            if (tNextX == tNext) {
-                dx += beamOrientationX;
-                tNextX += xdt;
-            }
 
-            if (tNextY == tNext) {
-                dy += beamOrientationY;
-                tNextY += ydt;
-            }
 
-            // Update tCur
-            tCur = tNext;
-        }
+
+
+
+
+        // // Calculate the line integral
+        // double p(0.0);
+        // if (dominantAxis == Dimension::X) {
+        //     while (dx >= 0 && dy >= 0 && dx <= nx-1 && dy <= ny-1) {
+        //         double fy = py - static_cast<double>(dy);
+
+        //         p += (1-fy) * image.get_val(dx, dy) + fy * image.get_val(dx, std::min(dy+1, ny-1));
+
+        //         px += rayOrientationX;
+        //         py += dir.y / dir.x;
+
+        //         dx = static_cast<int>(std::floor(px));
+        //         dy = static_cast<int>(std::floor(py));
+        //     }
+        // }
+        // else if (dominantAxis == Dimension::Y) {
+        //     while (dx >= 0 && dy >= 0 && dx <= nx-1 && dy <= ny-1) {
+        //         double fx = px - static_cast<double>(dx);
+
+        //         p += (1-fx) * image.get_val(dx, dy) + fx * image.get_val(std::min(dx+1, nx-1), dy);
+
+        //         px += dir.x / dir.y;
+        //         py += rayOrientationY;
+
+        //         dx = static_cast<int>(std::floor(px));
+        //         dy = static_cast<int>(std::floor(py));
+        //     }
+        // }
+
+        // return p;
     }
+
+    // template <typename Visit>
+    // inline void trace_ray(
+    //     vector2d source, 
+    //     vector2d dir, 
+    //     double rayLength,
+    //     const fan_beam_configuration& config,
+    //     Visit visit
+    // ) {
+    //     // Get physical location of image edge (in mm)
+    //     const double cx = 0.5*config.sVoxel.x; //config.dVoxel.x * (0.5 * config.nVoxel.x);
+    //     const double cy = 0.5*config.sVoxel.y; //config.dVoxel.y * (0.5 * config.nVoxel.y);
+    //     const double xmin = -cx; const double xmax = cx;
+    //     const double ymin = -cy; const double ymax = cy;
+
+    //     // Calculate the values of t when the ray enters the image domain, and when it exits
+    //     double tEnter = 0.0;
+    //     double tExit = 1.0;
+
+    //     clip_axis(tEnter, tExit, source.x, dir.x, xmin, xmax);
+    //     clip_axis(tEnter, tExit, source.y, dir.y, ymin, ymax);
+
+    //     if (tEnter > tExit)
+    //         return;
+
+    //     // Get the orientation of the ray: is it moving in the positive/negative x/y dimensions
+    //     double beamOrientationX = sgn(dir.x);
+    //     double beamOrientationY = sgn(dir.y);
+
+    //     // Calculate the position where the ray enters the image. Use std::nextafter to infinitesimally move into the image domain.
+    //     double px = std::nextafter(source.x + tEnter * dir.x, source.x + (tEnter + 1.0) * dir.x);
+    //     double py = std::nextafter(source.y + tEnter * dir.y, source.y + (tEnter + 1.0) * dir.y);
+        
+    //     // Convert to voxel coordinates, clip to the image boundary
+    //     int dx = static_cast<int>(std::floor((px + cx) / config.dVoxel.x));
+    //     int dy = static_cast<int>(std::floor((py + cy) / config.dVoxel.y));
+
+    //     dx = std::min(static_cast<int>(config.nVoxel.x-1), std::max(0, dx));
+    //     dy = std::min(static_cast<int>(config.nVoxel.y-1), std::max(0, dy));
+
+    //     // Compute time it takes to traverse of voxel in the x- and y-direction. If the ray is parallel to the cooridinate axes 
+    //     // (which is the case if beamOrientationXY == 0), it takes infinite time to traverse between voxel boundaries.
+    //     const double xdt = beamOrientationX == 0 ? std::numeric_limits<double>::infinity() : config.dVoxel.x / std::abs(dir.x);
+    //     const double ydt = beamOrientationY == 0 ? std::numeric_limits<double>::infinity() : config.dVoxel.y / std::abs(dir.y);
+
+    //     // Compute the time the ray passes through the next boundary as seen from the first voxel entry
+    //     double tNextX = std::numeric_limits<double>::infinity();
+    //     double tNextY = std::numeric_limits<double>::infinity();
+
+    //     if (beamOrientationX != 0) {
+    //         const double boundary = xmin + (beamOrientationX > 0 ? dx + 1 : dx) * config.dVoxel.x;
+    //         tNextX = (boundary - source.x) / dir.x;
+    //     }
+    //     if (beamOrientationY != 0) {
+    //         const double boundary = ymin + (beamOrientationY > 0 ? dy + 1 : dy) * config.dVoxel.y;
+    //         tNextY = (boundary - source.y) / (dir.y);
+    //     }
+
+    //     // Move through the participating voxels in the image domain
+    //     double tCur = tEnter;
+    //     while(tCur < tExit &&
+    //         dx >= 0 && dx <= config.nVoxel.x-1 &&
+    //         dy >= 0 && dy <= config.nVoxel.y-1) {
+
+    //         // Compute the time of the next event
+    //         const double tNext = std::min({tNextX, tNextY, tExit});
+
+    //         // Compute contribution of current voxel
+    //         if (tNext > tCur)
+    //             visit(dx, dy, (tNext - tCur) * rayLength);
+
+    //         // Update variables
+    //         if (tNextX == tNext) {
+    //             dx += beamOrientationX;
+    //             tNextX += xdt;
+    //         }
+
+    //         if (tNextY == tNext) {
+    //             dy += beamOrientationY;
+    //             tNextY += ydt;
+    //         }
+
+    //         // Update tCur
+    //         tCur = tNext;
+    //     }
+    // }
 
     // Forward projection
     inline void Ax(opticalflow::Image& projections,
@@ -296,11 +475,11 @@ namespace fan_beam {
                 const double p = projections.get_val(u,a);
 
                 // Calculate the contribution of the ray
-                fan_beam::trace_ray(position_source, dir, DSP, config, 
-                    [&](int x, int y, double length) {
-                        backproj.set_val(backproj.get_val(x,y) + length*p, x, y);
-                    }
-                );                
+                // fan_beam::trace_ray(position_source, dir, DSP, config, 
+                //     [&](int x, int y, double length) {
+                //         backproj.set_val(backproj.get_val(x,y) + length*p, x, y);
+                //     }
+                // );                
             }
 
         }

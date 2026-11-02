@@ -22,7 +22,7 @@ config.nDetector = int32(512);
 config.dDetector = 0.8;
 config.sDetector = 409.6;
 
-config.angles = 0:10:360;
+config.angles = 0:2:360;
 
 % Create projection data
 tic;
