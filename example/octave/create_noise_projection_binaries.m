@@ -12,7 +12,7 @@ I0 = 1e4;
 isOctave = exist('OCTAVE_VERSION', 'builtin') ~= 0;
 if isOctave
     pkg load image;
-    pkg load statistics
+    pkg load statistics;
 end
 
 %% Read fan beam geometry and

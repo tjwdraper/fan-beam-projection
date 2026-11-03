@@ -35,6 +35,6 @@ ptAm = sum(p(:).*Am(:));
 Atpm = sum(Atp(:).*m(:));
 
 % A is self-adjoint if <A^Tp, m> = <p, Am>
-fprintf("Self adjointness: <A^Tp,m> - <p,Am> = %.3f\n", ptAm - Atpm);
+fprintf("Self adjointness: <A^Tp,m> - <p,Am> = %.12f\n", ptAm - Atpm);
 
 clear functions;
