@@ -2,7 +2,10 @@ clc;
 clear all;
 close all;
 
-pkg load image;
+isOctave = exist('OCTAVE_VERSION', 'builtin') ~= 0;
+if isOctave
+    pkg load image;
+end
 
 addpath("mex")
 
@@ -31,5 +34,7 @@ Atp = Atb_mex(p, config);
 ptAm = sum(p(:).*Am(:));
 Atpm = sum(Atp(:).*m(:));
 
-clear functions;
+% A is self-adjoint if <A^Tp, m> = <p, Am>
+fprintf("Self adjointness: <A^Tp,m> - <p,Am> = %.3f\n", ptAm - Atpm);
 
+clear functions;

@@ -4,7 +4,10 @@ close all;
 
 addpath("mex")
 
-pkg load image;
+isOctave = exist('OCTAVE_VERSION', 'builtin') ~= 0;
+if isOctave
+    pkg load image;
+end
 
 % Load image
 img = phantom();
