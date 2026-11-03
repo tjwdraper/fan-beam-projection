@@ -2,10 +2,10 @@ clc;
 clear all;
 close all;
 
-isOctave = exist('OCTAVE_VERSION', 'builtin') ~= 0;
-if isOctave
-    pkg load image;
-end
+#isOctave = exist('OCTAVE_VERSION', 'builtin') ~= 0;
+#if isOctave
+#    pkg load image;
+#end
 
 addpath("mex")
 

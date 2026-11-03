@@ -68,7 +68,7 @@ namespace fan_beam {
         const double ymin = -(cy + 0.5) * dVoxelY;
         const double ymax = (cy + 0.5) * dVoxelY;
 
-        std::cout << "xmin: " << xmin << " xmax: " << xmax << " ymin: " << ymin << " ymax: " << ymax << std::endl;
+        //std::cout << "xmin: " << xmin << " xmax: " << xmax << " ymin: " << ymin << " ymax: " << ymax << std::endl;
 
         if (nx <= 0 || ny <= 0 || dVoxelX <= 0 || dVoxelY <= 0)
             return 0.0;
