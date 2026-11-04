@@ -2,8 +2,8 @@ clc;
 clear all;
 close all;
 
-dir_name = fileparts(mfilename('fullpath'));
-addpath([dir_name, '\..\..\mex']);
+project_dir = fullfile(fileparts(mfilename('fullpath')), '..', '..');
+addpath(fullfile(project_dir, 'mex'));
 
 %% Select I0
 I0 = 1e4;
@@ -16,7 +16,7 @@ if isOctave
 end
 
 %% Read fan beam geometry and
-json_data = jsondecode(fileread('./example/config_shepp_logan.json'));
+json_data = jsondecode(fileread(fullfile(project_dir, 'example', 'config_shepp_logan.json')));
 
 geometry = json_data.geometry;
 geometry.nVoxel = int32(geometry.nVoxel);
@@ -32,15 +32,15 @@ else
 end
 
 %% Read image binary. If not in the image folder, create the image binary
-if ~exist([dir_name, '\..\..\img'], 'dir')
-  mkdir('img');
+if ~exist(fullfile(project_dir, 'img'), 'dir')
+    mkdir(fullfile(project_dir, 'img'));
 end
 
-if ~exist([dir_name, '\..\..\img\shepp_logan_gt.bin'], 'file')
-  create_image_binaries;
+if ~exist(fullfile(project_dir, 'img', 'shepp_logan_gt.bin'), 'file')
+    create_image_binaries;
 end
 
-fid = fopen([dir_name, '\..\..\img\shepp_logan_gt.bin'], 'rb');
+fid = fopen(fullfile(project_dir, 'img', 'shepp_logan_gt.bin'), 'rb');
 nx = fread(fid, 1, 'double');
 ny = fread(fid, 1, 'double');
 if (nx ~= geometry.nVoxel(1) || ...
@@ -54,7 +54,7 @@ fclose(fid);
 %% Apply forward projection operator
 projections = Ax_mex(img, geometry);
 
-fid = fopen([dir_name, '\..\..\img\projections_gt.bin'], 'wb');
+fid = fopen(fullfile(project_dir, 'img', 'projections_gt.bin'), 'wb');
 fwrite(fid, size(projections, 1), 'double');
 fwrite(fid, size(projections, 2), 'double');
 fwrite(fid, projections, 'double');
@@ -67,7 +67,7 @@ I = I0 * exp(-projections / max(projections(:)));
 Inoise = poissrnd(I);
 projections_noise =  -max(projections(:)) * log(Inoise / I0);
 
-fid = fopen([dir_name, '\..\..\img\projections_noise.bin'], 'wb');
+fid = fopen(fullfile(project_dir, 'img', 'projections_noise.bin'), 'wb');
 fwrite(fid, size(projections_noise, 1), 'double');
 fwrite(fid, size(projections_noise, 2), 'double');
 fwrite(fid, projections_noise, 'double');
