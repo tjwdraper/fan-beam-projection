@@ -34,21 +34,9 @@ inline bool clip_axis(double& tEnter, double& tExit, const double s, const doubl
 
 namespace fan_beam {
     // Rotation of 2d position
-    inline vector2d rotate(vector2d vec, double angle) {
-        return vector2d(
-            vec.x * cos(angle) - vec.y * sin(angle),
-            vec.x * sin(angle) + vec.y * cos(angle)
-        );
-    }
+    
 
-    // Helper functions
-    inline vector2d get_source_position(double angle, const fan_beam_configuration& config) {
-        return rotate(vector2d(config.DSO,0), angle);
-    }
-
-    inline vector2d get_detector_pixel_position(int u, double angle, const fan_beam_configuration& config) {
-        return rotate(vector2d(-(config.DSD-config.DSO),(u+0.5)*config.dDetector -config.sDetector/2.0), angle);
-    }
+    
 
     // Traverse a ray and call visit(x, y, segment_length) for every
     // voxel crossed. Assumes sVoxel = nVoxel * dVoxel.
@@ -331,11 +319,11 @@ namespace fan_beam {
             const double angle = config.angles[a];
 
             // Calculate position of the source
-            vector2d position_source = fan_beam::get_source_position(angle, config);
+            vector2d position_source = config.get_source_position(angle); //fan_beam::get_source_position(angle, config);
 
             for (std::size_t u = 0; u < config.nDetector; ++u) {
                 // Get the position of the voxel in mm and the direction vector between the source and current pixel:
-                vector2d position_detector_pixel = fan_beam::get_detector_pixel_position(u, angle, config);
+                vector2d position_detector_pixel = config.get_detector_pixel_position(u, angle); //fan_beam::get_detector_pixel_position(u, angle, config);
                 vector2d dir = position_detector_pixel - position_source;
 
                 // Get the length of the ray
@@ -358,11 +346,11 @@ namespace fan_beam {
             const double angle = config.angles[a];
 
             // Calculate position of the 
-            vector2d position_source = fan_beam::get_source_position(angle, config);
+            vector2d position_source = config.get_source_position(angle); //fan_beam::get_source_position(angle, config);
 
             for (std::size_t u = 0; u < config.nDetector; ++u) {
                 // Get the position of the voxel in mm and the direction vector between the source and current pixel:
-                vector2d position_detector_pixel = fan_beam::get_detector_pixel_position(u, angle, config);
+                vector2d position_detector_pixel = config.get_detector_pixel_position(u, angle); //fan_beam::get_detector_pixel_position(u, angle, config);
                 vector2d dir = position_detector_pixel - position_source;
 
                 // Get the length of the ray
