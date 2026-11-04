@@ -45,16 +45,16 @@ namespace fan_beam {
         const int nx = static_cast<int>(config.nVoxel.x);
         const int ny = static_cast<int>(config.nVoxel.y);
 
-        const double cx = static_cast<double>(nx)/2 - 0.5;
-        const double cy = static_cast<double>(ny)/2 - 0.5;
+        // const double cx = static_cast<double>(nx)/2 - 0.5;
+        // const double cy = static_cast<double>(ny)/2 - 0.5;
 
         const double dVoxelX = config.dVoxel.x;
         const double dVoxelY = config.dVoxel.y;
 
-        const double xmin = -(cx + 0.5) * dVoxelX;
-        const double xmax = (cx + 0.5) * dVoxelX;
-        const double ymin = -(cy + 0.5) * dVoxelY;
-        const double ymax = (cy + 0.5) * dVoxelY;
+        // const double xmin = -(cx + 0.5) * dVoxelX;
+        // const double xmax = (cx + 0.5) * dVoxelX;
+        // const double ymin = -(cy + 0.5) * dVoxelY;
+        // const double ymax = (cy + 0.5) * dVoxelY;
 
         if (nx <= 0 || ny <= 0 || dVoxelX <= 0 || dVoxelY <= 0)
             return 0.0;
@@ -75,8 +75,8 @@ namespace fan_beam {
         double tEnter = 0.0;
         double tExit  = 1.0;
 
-        if (!clip_axis(tEnter, tExit, source.x, dir.x, xmin, xmax) ||
-            !clip_axis(tEnter, tExit, source.y, dir.y, ymin, ymax) ||
+        if (!clip_axis(tEnter, tExit, source.x, dir.x, config.xmin(), config.xmax()) ||
+            !clip_axis(tEnter, tExit, source.y, dir.y, config.ymin(), config.ymax()) ||
             tEnter < 0 || tEnter > 1 ||
             tExit < 0 || tExit > 1 || 
             tEnter >= tExit)
@@ -102,24 +102,26 @@ namespace fan_beam {
                 // Sample at the midpoint of the interval.
                 const double tm = 0.5 * (t0 + t1);
 
-                const double x = source.x + tm * dir.x;
-                const double y = source.y + tm * dir.y;
+                // const double x = source.x + tm * dir.x;
+                // const double y = source.y + tm * dir.y;
+                const vector2d pos_mm = source + tm * dir;
 
                 // Continuous pixel-center coordinates.
-                const double px = x / dVoxelX + cx;
-                double py = y / dVoxelY + cy;
+                vector2d pos = config.mm_to_voxel(pos_mm);
+                // const double px = x / dVoxelX + cx;
+                // double py = y / dVoxelY + cy;
 
                 // Major-axis pixel index.
-                int ix = static_cast<int>(std::floor(px + 0.5));
+                int ix = static_cast<int>(std::floor(pos.x + 0.5));
                 ix = std::clamp(ix, 0, nx - 1);
 
                 // Clamp minor coordinate to image edges.
-                py = std::clamp(py, 0.0, static_cast<double>(ny - 1));
+                pos.y = std::clamp(pos.y, 0.0, static_cast<double>(ny - 1));
 
-                const int iy0 = static_cast<int>(std::floor(py));
+                const int iy0 = static_cast<int>(std::floor(pos.y));
                 const int iy1 = std::min(iy0 + 1, ny - 1);
 
-                const double fy = py - iy0;
+                const double fy = pos.y - iy0;
 
                 const double value =
                     (1.0 - fy) * image.get_val(ix, iy0) +
@@ -147,17 +149,18 @@ namespace fan_beam {
 
                 const double tm = 0.5 * (t0 + t1);
 
-                const double x = source.x + tm * dir.x;
-                const double y = source.y + tm * dir.y;
+                // const double x = source.x + tm * dir.x;
+                // const double y = source.y + tm * dir.y;
+                const vector2d pos_mm = source + tm * dir;
 
-                const double px = x / dVoxelX + cx;
-                const double py = y / dVoxelY + cy;
+                // const double px = x / dVoxelX + cx;
+                // const double py = y / dVoxelY + cy;
+                vector2d pos = config.mm_to_voxel(pos_mm);
 
-                int iy = static_cast<int>(std::floor(py + 0.5));
+                int iy = static_cast<int>(std::floor(pos.y + 0.5));
                 iy = std::clamp(iy, 0, ny - 1);
 
-                double pxClamped = std::clamp(
-                    px, 0.0, static_cast<double>(nx - 1));
+                double pxClamped = std::clamp(pos.x, 0.0, static_cast<double>(nx - 1));
 
                 const int ix0 = static_cast<int>(std::floor(pxClamped));
                 const int ix1 = std::min(ix0 + 1, nx - 1);
