@@ -35,22 +35,22 @@ time = toc;
 
 figure(); imagesc(proj);
 
-##% Add TGV parameters to configuration
-##config.alpha0 = 5.0;
-##config.alpha1 = 1.0;
-##config.tau = 0.2;
-##config.sigma = 0.2;
-##config.lambda = 0.1;
-##config.niter = 1000;
-##config.convergence = 1e-6;
-##
-##
-##img_recon = fan_beam_reconstruction(proj, config);
-##
-##% Show
-##figure();
-##subplot(121); imagesc(img);
-##subplot(122); imagesc(img_recon);
-##
-##% Clear functions
-##clear functions;
+% Add TGV parameters to configuration
+config.alpha0 = 5.0;
+config.alpha1 = 1.0;
+config.tau = 0.2;
+config.sigma = 0.2;
+config.lambda = 0.1;
+config.niter = 1000;
+config.convergence = 1e-6;
+
+
+img_recon = fan_beam_reconstruction(proj, config);
+
+% Show
+figure();
+subplot(121); imagesc(img);
+subplot(122); imagesc(img_recon);
+
+% Clear functions
+clear functions;

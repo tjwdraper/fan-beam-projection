@@ -149,4 +149,11 @@ inline double norm(const vector2d& a) {
     return std::sqrt(normsq(a));
 }
 
+inline vector2d rotate(vector2d vec, double angle) {
+    return vector2d(
+        vec.x * cos(angle) - vec.y * sin(angle),
+        vec.x * sin(angle) + vec.y * cos(angle)
+    );
+}
+
 #endif

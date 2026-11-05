@@ -10,6 +10,10 @@ if isOctave
     pkg load image
 end
 
+if ~exist(fullfile(project_dir, 'img'), 'dir')
+    mkdir(fullfile(project_dir, 'img'));
+end
+
 %% Shepp-Logan phantom
 img = phantom();
 
