@@ -122,28 +122,13 @@ namespace fan_beam {
         return p;
     }
 
-    inline void accumulate_ray_adjoint(opticalflow::Image& backproj, vector2d source, vector2d dir, const double p, const fan_beam_configuration& config) {
+    inline void accumulate_ray_adjoint(opticalflow::Image& backproj, vector2d source, vector2d dir, const double rayLength, const double p, const fan_beam_configuration& config) {
         // Get pixel dimensions
         const int nx = static_cast<int>(config.nVoxel.x);
         const int ny = static_cast<int>(config.nVoxel.y);
 
-        const double cx = static_cast<double>(nx)/2 - 0.5;
-        const double cy = static_cast<double>(ny)/2 - 0.5;
-
         const double dVoxelX = config.dVoxel.x;
         const double dVoxelY = config.dVoxel.y;
-
-        const double xmin = -(cx + 0.5) * dVoxelX;
-        const double xmax = (cx + 0.5) * dVoxelX;
-        const double ymin = -(cy + 0.5) * dVoxelY;
-        const double ymax = (cy + 0.5) * dVoxelY;
-
-        if (nx <= 0 || ny <= 0 || dVoxelX <= 0 || dVoxelY <= 0)
-            return;
-
-        const double rayLength = std::hypot(dir.x, dir.y);
-        if (rayLength == 0.0)
-            return;
             
         // Calculate the ray orientation. Does it travel along the positive or negative x/y-dimensions, and which dimension is dominant?
         Dimension dominantAxis = (std::abs(dir.x) / dVoxelX > std::abs(dir.y) / dVoxelY ? Dimension::X : Dimension::Y);
@@ -157,8 +142,8 @@ namespace fan_beam {
         double tEnter = 0.0;
         double tExit  = 1.0;
 
-        if (!clip_axis(tEnter, tExit, source.x, dir.x, xmin, xmax) ||
-            !clip_axis(tEnter, tExit, source.y, dir.y, ymin, ymax) ||
+        if (!clip_axis(tEnter, tExit, source.x, dir.x, config.xmin(), config.xmax()) ||
+            !clip_axis(tEnter, tExit, source.y, dir.y, config.ymin(), config.ymax()) ||
             tEnter < 0 || tEnter > 1 ||
             tExit < 0 || tExit > 1 || 
             tEnter >= tExit)
@@ -166,88 +151,70 @@ namespace fan_beam {
             return; // No positive-length intersection.
         }
 
-        if (dominantAxis == Dimension::X)
-        {
-            if (std::abs(dir.x) < 1e-12)
-                return;
+        ///////////////////////////////////
+        // Calculate line-integral
+        ///////////////////////////////////
+        
+        // Compute "time"-interval to traverse from one voxel to the next
+        const double dt = (dominantAxis == Dimension::X ? dVoxelX / std::abs(dir.x) : dVoxelY / std::abs(dir.y));
 
-            const double dt = dVoxelX / std::abs(dir.x);
+        while (tEnter < tExit) {
+            const double t0 = tEnter;
+            const double t1 = std::min(t0 + dt, tExit);
 
-            while (tEnter < tExit)
-            {
-                // Current integration interval.
-                const double t0 = tEnter;
-                const double t1 = std::min(t0 + dt, tExit);
+            // Sample the midpoint of the interval
+            const double tm = 0.5 * (t0 + t1);
 
-                // Sample at the midpoint of the interval.
-                const double tm = 0.5 * (t0 + t1);
+            // Get the physical position of the ray-voxel intersection
+            const vector2d pos_mm = source + tm * dir;
 
-                const double x = source.x + tm * dir.x;
-                const double y = source.y + tm * dir.y;
+            // Compute the location in voxel coordinates
+            vector2d pos = config.mm_to_voxel(pos_mm);
 
-                // Continuous pixel-center coordinates.
-                const double px = x / dVoxelX + cx;
-                double py = y / dVoxelY + cy;
+            // Joseph interpolation
+            if (dominantAxis == Dimension::X) {
+                // Compute indices of voxel through which the ray travels
+                int dx = static_cast<int>(std::floor(pos.x + 0.5 * rayOrientationX));
+                dx = std::clamp(dx, 0, nx-1);
 
-                // Major-axis pixel index.
-                int ix = static_cast<int>(std::floor(px + 0.5));
-                ix = std::clamp(ix, 0, nx - 1);
+                int dy = static_cast<int>(std::floor(pos.y));
+                dy = std::clamp(dy, 0, ny-1);
 
-                // Clamp minor coordinate to image edges.
-                py = std::clamp(py, 0.0, static_cast<double>(ny - 1));
+                // Compute the interpolation weight
+                const double f = pos.y - static_cast<double>(dy);
 
-                const int iy0 = static_cast<int>(std::floor(py));
-                const int iy1 = std::min(iy0 + 1, ny - 1);
-
-                const double fy = py - iy0;
-
-                // Physical length represented by this sample.
+                // Compute the fraction of the length of the ray through the voxel.
                 const double ds = (t1 - t0) * rayLength;
 
-                backproj.set_val(backproj.get_val(ix, iy0) + (1.0 - fy) * ds * p, ix, iy0);
-                backproj.set_val(backproj.get_val(ix, iy1) + fy * ds * p, ix, iy1);
+                // Add contribution of projection to image
+                backproj.set_val(backproj.get_val(dx, dy) + ds * (1-f) * p, dx, dy);
 
-                tEnter = t1;
+                dy = std::min(dy+1, ny-1);
+                backproj.set_val(backproj.get_val(dx, dy) + ds * f * p, dx, dy);
             }
-        }
-        else
-        {
-            if (std::abs(dir.y) < 1e-12)
-                return;
+            else if (dominantAxis == Dimension::Y) {
+                // Compute indices of voxel through which the ray travels
+                int dx = static_cast<int>(std::floor(pos.x));
+                dx = std::clamp(dx, 0, nx-1);
 
-            const double dt = dVoxelY / std::abs(dir.y);
+                int dy = static_cast<int>(std::floor(pos.y + 0.5 * rayOrientationY));
+                dy = std::clamp(dy, 0, ny-1);
 
-            while (tEnter < tExit)
-            {
-                const double t0 = tEnter;
-                const double t1 = std::min(t0 + dt, tExit);
+                // Compute the interpolation weight
+                const double f = pos.x - static_cast<double>(dx);
 
-                const double tm = 0.5 * (t0 + t1);
-
-                const double x = source.x + tm * dir.x;
-                const double y = source.y + tm * dir.y;
-
-                const double px = x / dVoxelX + cx;
-                const double py = y / dVoxelY + cy;
-
-                int iy = static_cast<int>(std::floor(py + 0.5));
-                iy = std::clamp(iy, 0, ny - 1);
-
-                double pxClamped = std::clamp(
-                    px, 0.0, static_cast<double>(nx - 1));
-
-                const int ix0 = static_cast<int>(std::floor(pxClamped));
-                const int ix1 = std::min(ix0 + 1, nx - 1);
-
-                const double fx = pxClamped - ix0;
-
+                // Compute the gration of the length through the voxel
                 const double ds = (t1 - t0) * rayLength;
 
-                backproj.set_val(backproj.get_val(ix0, iy) + (1.0 - fx) * ds * p, ix0, iy);
-                backproj.set_val(backproj.get_val(ix1, iy) + fx * ds * p, ix1, iy);
+                // Add constribution of projection to image
+                backproj.set_val(backproj.get_val(dx, dy) + ds * (1-f) * p, dx, dy);
 
-                tEnter = t1;
+                dx = std::min(dx+1, nx-1);
+                backproj.set_val(backproj.get_val(dx, dy) + ds * f * p, dx, dy);
             }
+
+            // Increment tEnter
+            tEnter = t1;
         }
     }
 
@@ -256,9 +223,10 @@ namespace fan_beam {
         const opticalflow::Image& image,
         const fan_beam_configuration& config
     ) {
-        // Iterate over rotation angles
+        // Compute distances between fan-beam source and detector voxels
         const std::vector<double> raylengths = config.compute_ray_lengths();
 
+        // Iterate over rotation angles
         for (std::size_t a = 0; a < config.angles.size(); ++a) {
             // Get the current rotation angle
             const double angle = config.angles[a];
@@ -282,31 +250,25 @@ namespace fan_beam {
         const opticalflow::Image& projections,
         const fan_beam_configuration& config
     ) {
+        // Compute distances between fan-beam source and detector voxels
+        const std::vector<double> raylengths = config.compute_ray_lengths();
+
         // Iterate over rotation angles
         for (std::size_t a = 0; a < config.angles.size(); ++a) {
             // Get the current rotation angle
             const double angle = config.angles[a];
 
             // Calculate position of the 
-            vector2d position_source = config.get_source_position(angle); //fan_beam::get_source_position(angle, config);
+            vector2d position_source = config.get_source_position(angle);
 
             for (std::size_t u = 0; u < config.nDetector; ++u) {
                 // Get the position of the voxel in mm and the direction vector between the source and current pixel:
-                vector2d position_detector_pixel = config.get_detector_pixel_position(u, angle); //fan_beam::get_detector_pixel_position(u, angle, config);
+                vector2d position_detector_pixel = config.get_detector_pixel_position(u, angle);
                 vector2d dir = position_detector_pixel - position_source;
 
-                // Get the length of the ray
-                const double DSP = std::hypot(dir.x, dir.y);
+                // Compute contribution of current projection to back-projection.
                 const double p = projections.get_val(u,a);
-
-                fan_beam::accumulate_ray_adjoint(backproj, position_source, dir, p, config);
-
-                // Calculate the contribution of the ray
-                // fan_beam::trace_ray(position_source, dir, DSP, config, 
-                //     [&](int x, int y, double length) {
-                //         backproj.set_val(backproj.get_val(x,y) + length*p, x, y);
-                //     }
-                // );                
+                fan_beam::accumulate_ray_adjoint(backproj, position_source, dir, raylengths[u], p, config);           
             }
 
         }
