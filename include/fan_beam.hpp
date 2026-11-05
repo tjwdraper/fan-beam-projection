@@ -33,35 +33,15 @@ inline bool clip_axis(double& tEnter, double& tExit, const double s, const doubl
 }
 
 namespace fan_beam {
-    // Rotation of 2d position
-    
-
-    
-
     // Traverse a ray and call visit(x, y, segment_length) for every
     // voxel crossed. Assumes sVoxel = nVoxel * dVoxel.
-    inline double accumulate_ray(vector2d source, vector2d dir, const opticalflow::Image& image, const fan_beam_configuration& config) {
+    inline double accumulate_ray(vector2d source, vector2d dir, const double rayLength, const opticalflow::Image& image, const fan_beam_configuration& config) {
         // Get pixel dimensions
         const int nx = static_cast<int>(config.nVoxel.x);
         const int ny = static_cast<int>(config.nVoxel.y);
 
-        // const double cx = static_cast<double>(nx)/2 - 0.5;
-        // const double cy = static_cast<double>(ny)/2 - 0.5;
-
         const double dVoxelX = config.dVoxel.x;
         const double dVoxelY = config.dVoxel.y;
-
-        // const double xmin = -(cx + 0.5) * dVoxelX;
-        // const double xmax = (cx + 0.5) * dVoxelX;
-        // const double ymin = -(cy + 0.5) * dVoxelY;
-        // const double ymax = (cy + 0.5) * dVoxelY;
-
-        if (nx <= 0 || ny <= 0 || dVoxelX <= 0 || dVoxelY <= 0)
-            return 0.0;
-
-        const double rayLength = std::hypot(dir.x, dir.y);
-        if (rayLength == 0.0)
-            return 0.0;
 
         // Calculate the ray orientation. Does it travel along the positive or negative x/y-dimensions, and which dimension is dominant?
         Dimension dominantAxis = (std::abs(dir.x) / dVoxelX > std::abs(dir.y) / dVoxelY ? Dimension::X : Dimension::Y);
@@ -84,99 +64,59 @@ namespace fan_beam {
             return 0.0; // No positive-length intersection.
         }
 
+        ///////////////////////////////////
+        // Calculate line-integral
+        ///////////////////////////////////
         double p = 0.0;
 
-        if (dominantAxis == Dimension::X)
-        {
-            if (std::abs(dir.x) < 1e-12)
-                return 0.0;
+        // Compute "time"-interval to traverse from one voxel to the next
+        const double dt = (dominantAxis == Dimension::X ? dVoxelX / std::abs(dir.x) : dVoxelY / std::abs(dir.y));
 
-            const double dt = dVoxelX / std::abs(dir.x);
+        while (tEnter < tExit) {
+            const double t0 = tEnter;
+            const double t1 = std::min(t0 + dt, tExit);
 
-            while (tEnter < tExit)
-            {
-                // Current integration interval.
-                const double t0 = tEnter;
-                const double t1 = std::min(t0 + dt, tExit);
+            // Sample the midpoint of the interval
+            const double tm = 0.5 * (t0 + t1);
 
-                // Sample at the midpoint of the interval.
-                const double tm = 0.5 * (t0 + t1);
+            // Get the physical position of the ray-voxel intersection
+            const vector2d pos_mm = source + tm * dir;
 
-                // const double x = source.x + tm * dir.x;
-                // const double y = source.y + tm * dir.y;
-                const vector2d pos_mm = source + tm * dir;
+            // Compute location in voxel-coordinates
+            vector2d pos = config.mm_to_voxel(pos_mm);
 
-                // Continuous pixel-center coordinates.
-                vector2d pos = config.mm_to_voxel(pos_mm);
-                // const double px = x / dVoxelX + cx;
-                // double py = y / dVoxelY + cy;
+            // Joseph interpolation
+            double value;
+            if (dominantAxis == Dimension::X) {
+                // From voxel edge to voxel center
+                int dx = static_cast<int>(std::floor(pos.x + 0.5*rayOrientationX));
+                dx = std::clamp(dx, 0, nx-1);
 
-                // Major-axis pixel index.
-                int ix = static_cast<int>(std::floor(pos.x + 0.5));
-                ix = std::clamp(ix, 0, nx - 1);
+                int dy = static_cast<int>(std::floor(pos.y));
+                dy = std::clamp(dy, 0, ny-1);
 
-                // Clamp minor coordinate to image edges.
-                pos.y = std::clamp(pos.y, 0.0, static_cast<double>(ny - 1));
+                const double f = pos.y - static_cast<double>(dy);
 
-                const int iy0 = static_cast<int>(std::floor(pos.y));
-                const int iy1 = std::min(iy0 + 1, ny - 1);
+                value = (1 - f) * image.get_val(dx, dy) + f * image.get_val(dx, std::min(dy+1,ny-1));
 
-                const double fy = pos.y - iy0;
-
-                const double value =
-                    (1.0 - fy) * image.get_val(ix, iy0) +
-                    fy         * image.get_val(ix, iy1);
-
-                // Physical length represented by this sample.
-                const double ds = (t1 - t0) * rayLength;
-
-                p += value * ds;
-
-                tEnter = t1;
             }
-        }
-        else
-        {
-            if (std::abs(dir.y) < 1e-12)
-                return 0.0;
+            else if (dominantAxis == Dimension::Y) {
+                int dx = static_cast<int>(std::floor(pos.x));
+                dx = std::clamp(dx, 0, nx-1);
 
-            const double dt = dVoxelY / std::abs(dir.y);
+                int dy = static_cast<int>(std::floor(pos.y + 0.5*rayOrientationY));
+                dy = std::clamp(dy, 0, ny-1);
 
-            while (tEnter < tExit)
-            {
-                const double t0 = tEnter;
-                const double t1 = std::min(t0 + dt, tExit);
+                const double f = pos.x - static_cast<double>(dx);
 
-                const double tm = 0.5 * (t0 + t1);
-
-                // const double x = source.x + tm * dir.x;
-                // const double y = source.y + tm * dir.y;
-                const vector2d pos_mm = source + tm * dir;
-
-                // const double px = x / dVoxelX + cx;
-                // const double py = y / dVoxelY + cy;
-                vector2d pos = config.mm_to_voxel(pos_mm);
-
-                int iy = static_cast<int>(std::floor(pos.y + 0.5));
-                iy = std::clamp(iy, 0, ny - 1);
-
-                double pxClamped = std::clamp(pos.x, 0.0, static_cast<double>(nx - 1));
-
-                const int ix0 = static_cast<int>(std::floor(pxClamped));
-                const int ix1 = std::min(ix0 + 1, nx - 1);
-
-                const double fx = pxClamped - ix0;
-
-                const double value =
-                    (1.0 - fx) * image.get_val(ix0, iy) +
-                    fx         * image.get_val(ix1, iy);
-
-                const double ds = (t1 - t0) * rayLength;
-
-                p += value * ds;
-
-                tEnter = t1;
+                value = (1 - f) * image.get_val(dx, dy) + f * image.get_val(std::min(dx+1,nx-1), dy);
             }
+
+            // Increment the projection value
+            p += (t1 - t0) * rayLength * value;
+
+            // Increment tEnter
+            tEnter = t1;
         }
 
         return p;
@@ -317,24 +257,23 @@ namespace fan_beam {
         const fan_beam_configuration& config
     ) {
         // Iterate over rotation angles
+        const std::vector<double> raylengths = config.compute_ray_lengths();
+
         for (std::size_t a = 0; a < config.angles.size(); ++a) {
             // Get the current rotation angle
             const double angle = config.angles[a];
 
             // Calculate position of the source
-            vector2d position_source = config.get_source_position(angle); //fan_beam::get_source_position(angle, config);
+            vector2d position_source = config.get_source_position(angle);
 
             for (std::size_t u = 0; u < config.nDetector; ++u) {
                 // Get the position of the voxel in mm and the direction vector between the source and current pixel:
-                vector2d position_detector_pixel = config.get_detector_pixel_position(u, angle); //fan_beam::get_detector_pixel_position(u, angle, config);
+                vector2d position_detector_pixel = config.get_detector_pixel_position(u, angle);
                 vector2d dir = position_detector_pixel - position_source;
 
-                // Get the length of the ray
-                const double DSP = std::hypot(dir.x, dir.y);
-
-                double sum = fan_beam::accumulate_ray(position_source, dir, image, config);
-
-                projections.set_val(sum, u, a);
+                // Compute the line integral
+                double p = fan_beam::accumulate_ray(position_source, dir, raylengths[u], image, config);
+                projections.set_val(p, u, a);
             }
         }
     }

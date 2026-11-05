@@ -54,6 +54,21 @@ class fan_beam_configuration {
             );
         }
 
+        // Compute distances between source and detector pixels
+        std::vector<double> compute_ray_lengths() const {
+            std::vector<double> raylengths(nDetector);
+
+            const vector2d position_source = get_source_position(0);
+            for (int u = 0; u < nDetector; u++) {
+                const vector2d position_detector_pixel = get_detector_pixel_position(u, 0);
+                const vector2d dir = position_detector_pixel - position_source;
+
+                raylengths[u] = std::hypot(dir.x, dir.y);
+            }
+
+            return raylengths;
+        }
+
         // Get physical location of the edges of the image
         double xmin() const {
             return -(static_cast<double>(nVoxel.x) / 2) * dVoxel.x;
